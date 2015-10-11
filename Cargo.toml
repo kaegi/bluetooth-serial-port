@@ -2,6 +2,11 @@
 name = "bluetooth"
 version = "0.1.0"
 authors = ["Christopher James Halse Rogers <raof@ubuntu.com>"]
+description = "Interact with Bluetooth devices"
+repository = "https://github.com/RAOF/bluetooth-rs"
+readme = "README.md"
+keywords = ["bluetooth"]
+license = "MIT"
 
 [dependencies]
 mio = "^0.4.3"
