@@ -7,6 +7,7 @@ mod ffi;
 use std::io::{Read, Write, Result};
 use std::ffi::CString;
 use std::mem;
+use std::str;
 
 use std::os::unix::prelude::AsRawFd;
 
@@ -38,7 +39,7 @@ impl BtAddr {
         unsafe {
             let ffi_buffer = CString::from_vec_unchecked(vec![0u8; 17]);
             ffi::ba2str(&self, ffi_buffer.as_ptr());
-            String::from(ffi_buffer.to_str().unwrap())
+            String::from(str::from_utf8(ffi_buffer.as_bytes()).unwrap())
         }
     }
 }
