@@ -3,6 +3,8 @@ rust:
   - stable
   - beta
   - nightly
+script:
+  - cargo test --features test_without_hardware
 matrix:
   allow_failures:
     - rust: nightly
