@@ -171,6 +171,7 @@ mod tests {
         assert!(addr_string.eq_ignore_ascii_case(&BtAddr::from_string(addr_string).unwrap().to_string()));
     }
 
+    #[cfg(not(feature = "test_without_hardware"))]
     #[test()]
     fn creates_rfcomm_socket() {
         BluetoothSocket::new(BluetoothProtocol::RFCOMM).unwrap();

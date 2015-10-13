@@ -12,3 +12,8 @@ license = "MIT"
 mio = "^0.4.3"
 nix = "^0.4.1"
 libc = "^0.1.10"
+
+[features]
+# Feature to disable any tests which rely on hardware availability
+# eg: tests which attempt to create a BluetoothSocket.
+test_without_hardware = []
