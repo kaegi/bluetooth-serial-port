@@ -89,10 +89,10 @@ impl BluetoothSocket {
         }
     }
 
-    pub fn connect(&mut self, addr: &BtAddr) -> nix::Result<()> {
+    pub fn connect(&mut self, addr: &BtAddr, rc_channel: u8) -> nix::Result<()> {
         let full_address : sockaddr_rc = sockaddr_rc { rc_family : AF_BLUETOOTH as u16,
             rc_bdaddr : *addr,
-            rc_channel : 0
+            rc_channel : rc_channel
         };
 
         if unsafe { libc::connect(self.io.as_raw_fd(), &full_address as *const _ as *const libc::sockaddr, mem::size_of::<sockaddr_rc>() as u32) } < 0 {

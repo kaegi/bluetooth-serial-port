@@ -9,7 +9,7 @@ keywords = ["bluetooth"]
 license = "MIT"
 
 [dependencies]
-mio = "^0.4.3"
+mio = "^0.5.1"
 nix = "^0.4.1"
 libc = "^0.1.10"
 
