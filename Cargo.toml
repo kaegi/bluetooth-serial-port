@@ -1,11 +1,11 @@
 [package]
 name = "bluetooth"
 version = "0.1.0"
-authors = ["Christopher James Halse Rogers <raof@ubuntu.com>"]
+authors = ["Christopher James Halse Rogers <raof@ubuntu.com>", "Chang Spivey <chang.spivey@gmail.com>"]
 description = "Interact with Bluetooth devices"
-repository = "https://github.com/RAOF/bluetooth-rs"
+repository = "https://github.com/ChangSpivey/bluetooth-rs"
 readme = "README.md"
-keywords = ["bluetooth"]
+keywords = ["bluetooth", "RFCOMM", "SDP"]
 license = "MIT"
 
 [dependencies]
@@ -15,5 +15,5 @@ libc = "^0.1.10"
 
 [features]
 # Feature to disable any tests which rely on hardware availability
-# eg: tests which attempt to create a BluetoothSocket.
+# eg: tests which attempt to create a BtSocket.
 test_without_hardware = []

@@ -2,14 +2,37 @@ extern crate mio;
 extern crate nix;
 extern crate libc;
 
-mod ffi;
-
-use std::io::{Read, Write, Result};
-use std::ffi::CString;
+use std::result::Result;
+use std::io::{Read, Write};
 use std::mem;
 use std::str;
+use std::borrow::Cow;
 
 use std::os::unix::prelude::AsRawFd;
+
+///////////////////////////////////////
+// Linux implementation of functions
+#[cfg(target_os = "linux")]
+mod linux;
+#[cfg(target_os = "linux")]
+pub use linux::platform;
+
+///////////////////////////////////////
+// TODO: Windows implementation of functions
+// #[cfg(target_os = "windows")]
+// mod windows;
+// #[cfg(target_os = "windows")]
+// pub use windows::platform;
+
+pub use platform::scan_devices;
+pub use platform::native_bt_io;
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum BtError {
+    Unknown,
+    Errno(u32, Cow<'static, str>), // unix error numbers
+    Desc(Cow<'static, str>), // error with description
+}
 
 #[repr(C, packed)]
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
@@ -20,121 +43,88 @@ impl BtAddr {
         BtAddr ([0, 0, 0, 0, 0, 0])
     }
 
-    pub fn from_string(addr : &str) -> Option<BtAddr> {
-        let mut parsed_address : BtAddr = Self::any();
-        match CString::new(addr) {
-            Ok(a) => {
-                if unsafe { ffi::str2ba(a.as_ptr(), &mut parsed_address) } >= 0 {
-                    Some(parsed_address)
-                }
-                else {
-                    None
-                }
-            }
-            Err(_) => None
-        }
+    pub fn from_str(addr: &str) -> Option<BtAddr> {
+        unimplemented!(); // TODO: implement BtAddr::from_str
     }
 
     pub fn to_string(&self) -> String {
-        unsafe {
-            let ffi_buffer = CString::from_vec_unchecked(vec![0u8; 17]);
-            ffi::ba2str(&self, ffi_buffer.as_ptr());
-            String::from(str::from_utf8(ffi_buffer.as_bytes()).unwrap())
-        }
+        format!("{:02X}:{:02X}:{:02X}:{:02X}:{:02X}:{:02X}", self.0[0], self.0[1], self.0[2], self.0[3], self.0[4], self.0[5])
     }
 }
 
-#[repr(C)]
-#[derive(Copy, Debug, Clone)]
-struct sockaddr_rc {
-    rc_family : libc::sa_family_t,
-    rc_bdaddr : BtAddr,
-    rc_channel : u8
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BtDevice {
+    pub name: String,
+    pub addr: BtAddr,
 }
 
-pub enum BluetoothProtocol {
-    L2CAP = BTPROTO_L2CAP,
-    HCI = BTPROTO_HCI,
-    SCO = BTPROTO_SCO,
-    RFCOMM = BTPROTO_RFCOMM,
-    BNEP = BTPROTO_BNEP,
-    CMTP = BTPROTO_CMTP,
-    HIDP = BTPROTO_HIDP,
-    AVDTP = BTPROTO_AVDTP
+pub enum BtProtocol {
+    //L2CAP = BTPROTO_L2CAP,
+    //HCI = BTPROTO_HCI,
+    //SCO = BTPROTO_SCO,
+    RFCOMM,// = BTPROTO_RFCOMM,
+    //BNEP = BTPROTO_BNEP,
+    //CMTP = BTPROTO_CMTP,
+    //HIDP = BTPROTO_HIDP,
+    //AVDTP = BTPROTO_AVDTP
 }
 
-pub struct BluetoothSocket {
-    io : mio::Io
-}
-
-const AF_BLUETOOTH : i32 = 31;
-
-const BTPROTO_L2CAP : isize = 0;
-const BTPROTO_HCI : isize = 1;
-const BTPROTO_SCO : isize = 2;
-const BTPROTO_RFCOMM : isize = 3;
-const BTPROTO_BNEP : isize = 4;
-const BTPROTO_CMTP : isize = 5;
-const BTPROTO_HIDP : isize = 6;
-const BTPROTO_AVDTP : isize = 7;
-
-impl BluetoothSocket {
-    pub fn new(proto : BluetoothProtocol) -> nix::Result<BluetoothSocket> {
-        let fd = unsafe { libc::socket(AF_BLUETOOTH, libc::SOCK_STREAM, proto as i32) };
-
-        if fd < 0 {
-            Err(nix::Error::last())
-        } else {
-            Ok(From::from(mio::Io::from_raw_fd(fd)))
-        }
+impl BtDevice {
+    pub fn new(name: String, addr: BtAddr) -> BtDevice {
+        BtDevice { name: name, addr: addr }
     }
 
-    pub fn connect(&mut self, addr: &BtAddr, rc_channel: u8) -> nix::Result<()> {
-        let full_address : sockaddr_rc = sockaddr_rc { rc_family : AF_BLUETOOTH as u16,
-            rc_bdaddr : *addr,
-            rc_channel : rc_channel
-        };
+}
 
-        if unsafe { libc::connect(self.io.as_raw_fd(), &full_address as *const _ as *const libc::sockaddr, mem::size_of::<sockaddr_rc>() as u32) } < 0 {
-            Err(nix::Error::last())
-        } else {
-            Ok(())
-        }
+pub struct BtSocket {
+    io: mio::Io,
+}
+
+
+impl BtSocket {
+    pub fn new(protocol: BtProtocol) -> Result<BtSocket, BtError> {
+        let io = try!(native_bt_io::new_mio(protocol));
+        Ok(From::from(io))
+    }
+
+    pub fn connect(&mut self, addr: BtAddr, rc_channel: u32) -> Result<(), BtError> {
+        native_bt_io::connect(&mut self.io, addr, rc_channel)
     }
 }
 
-impl From<mio::Io> for BluetoothSocket {
-    fn from(io : mio::Io) -> BluetoothSocket {
-        BluetoothSocket { io : io }
+impl From<mio::Io> for BtSocket {
+    fn from(io : mio::Io) -> BtSocket {
+        BtSocket { io : io }
     }
 }
 
-impl mio::Evented for BluetoothSocket {
-    fn register(&self, selector: &mut mio::Selector, token: mio::Token, interest: mio::EventSet, opts: mio::PollOpt) -> Result<()> {
+impl mio::Evented for BtSocket {
+    fn register(&self, selector: &mut mio::Selector, token: mio::Token, interest: mio::EventSet, opts: mio::PollOpt) -> std::io::Result<()> {
         self.io.register(selector, token, interest, opts)
     }
 
-    fn reregister(&self, selector: &mut mio::Selector, token: mio::Token, interest: mio::EventSet, opts: mio::PollOpt) -> Result<()> {
+    fn reregister(&self, selector: &mut mio::Selector, token: mio::Token, interest: mio::EventSet, opts: mio::PollOpt) -> std::io::Result<()> {
         self.io.reregister(selector, token, interest, opts)
     }
 
-    fn deregister(&self, selector: &mut mio::Selector) -> Result<()> {
+    fn deregister(&self, selector: &mut mio::Selector) -> std::io::Result<()> {
         self.io.deregister(selector)
     }
 }
 
-impl Read for BluetoothSocket {
-    fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
+impl Read for BtSocket {
+    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
         self.io.read(buf)
     }
 }
 
-impl Write for BluetoothSocket {
-    fn write(&mut self, buf: &[u8]) -> Result<usize> {
+impl Write for BtSocket {
+    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
         self.io.write(buf)
     }
 
-    fn flush(&mut self) -> Result<()> {
+    fn flush(&mut self) -> std::io::Result<()> {
         self.io.flush()
     }
 }
@@ -175,6 +165,6 @@ mod tests {
     #[cfg(not(feature = "test_without_hardware"))]
     #[test()]
     fn creates_rfcomm_socket() {
-        BluetoothSocket::new(BluetoothProtocol::RFCOMM).unwrap();
+        BtSocket::new(BluetoothProtocol::RFCOMM).unwrap();
     }
 }
