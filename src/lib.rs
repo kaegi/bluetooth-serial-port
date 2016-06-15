@@ -4,18 +4,15 @@ extern crate libc;
 
 use std::result::Result;
 use std::io::{Read, Write};
-use std::mem;
 use std::str;
 use std::borrow::Cow;
-
-use std::os::unix::prelude::AsRawFd;
 
 ///////////////////////////////////////
 // Linux implementation of functions
 #[cfg(target_os = "linux")]
 mod linux;
 #[cfg(target_os = "linux")]
-pub use linux::platform;
+pub use linux::platform::*;
 
 ///////////////////////////////////////
 // TODO: Windows implementation of functions
@@ -24,9 +21,6 @@ pub use linux::platform;
 // #[cfg(target_os = "windows")]
 // pub use windows::platform;
 
-pub use platform::scan_devices;
-pub use platform::native_bt_io;
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum BtError {
     Unknown,
@@ -34,16 +28,29 @@ pub enum BtError {
     Desc(Cow<'static, str>), // error with description
 }
 
+impl std::fmt::Display for BtError {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "{:?}", self)
+    }
+}
+
+
 #[repr(C, packed)]
-#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+#[derive(Copy, Clone, PartialEq, Eq)]
 pub struct BtAddr(pub [u8; 6]);
+
+impl std::fmt::Debug for BtAddr {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "{:02X}:{:02X}:{:02X}:{:02X}:{:02X}:{:02X}", self.0[0], self.0[1], self.0[2], self.0[3], self.0[4], self.0[5])
+    }
+}
 
 impl BtAddr {
     pub fn any () -> BtAddr {
         BtAddr ([0, 0, 0, 0, 0, 0])
     }
 
-    pub fn from_str(addr: &str) -> Option<BtAddr> {
+    pub fn from_str(_: &str) -> Option<BtAddr> {
         unimplemented!(); // TODO: implement BtAddr::from_str
     }
 

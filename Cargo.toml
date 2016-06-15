@@ -1,6 +1,6 @@
 [package]
 name = "bluetooth"
-version = "0.1.0"
+version = "0.2.0"
 authors = ["Christopher James Halse Rogers <raof@ubuntu.com>", "Chang Spivey <chang.spivey@gmail.com>"]
 description = "Interact with Bluetooth devices"
 repository = "https://github.com/ChangSpivey/bluetooth-rs"
@@ -11,7 +11,7 @@ license = "MIT"
 [dependencies]
 mio = "^0.5.1"
 nix = "^0.4.1"
-libc = "^0.1.10"
+libc = "^0.2.12"
 
 [features]
 # Feature to disable any tests which rely on hardware availability

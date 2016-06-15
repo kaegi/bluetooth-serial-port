@@ -1,7 +1,8 @@
 extern crate libc;
 extern crate nix;
+extern crate mio;
 
-pub use super::*;
+use super::super::*;
 use self::libc::close;
 use ::std::os::raw::*;
 use ::std::ffi::CStr;
@@ -44,49 +45,48 @@ extern "C" {
     fn hci_open_dev(device_id: c_int) -> c_int /* socket to local bluetooth adapter */;
 
     /* The inquiry last at most for "1.28 * timout" seconds */
-    fn hci_inquiry(device_id: c_int, timeout: c_int, max_rsp: c_int, lap: *const u8, inquiry_info: *mut InquiryInfo, flags: c_long) -> c_int;
+    fn hci_inquiry(device_id: c_int, timeout: c_int, max_rsp: c_int, lap: *const u8, inquiry_info: *mut *mut InquiryInfo, flags: c_long) -> c_int;
 
     fn hci_read_remote_name(socket: c_int, addr: *const BtAddr, max_len: c_int, name: *mut c_char, timeout_ms: c_int) -> c_int;
 }
 
-pub fn scan_devices() -> Result<Vec<BtDevice>, Cow<'static, str>> {
-    unsafe {
-        let device_id = hci_get_route(0 as *mut BtAddr);
-        if device_id < 0 { return Err(Cow::Borrowed("hci_get_route(): no local bluetooth adapter found")); }
+pub fn scan_devices() -> Result<Vec<BtDevice>, BtError> {
+    let device_id = unsafe { hci_get_route(0 as *mut BtAddr) };
+    if device_id < 0 { return Err(BtError::Desc(Cow::Borrowed("hci_get_route(): no local bluetooth adapter found"))); }
 
-        let local_socket = hci_open_dev(device_id);
-        if local_socket < 0 { return Err(Cow::Borrowed("hci_open_dev(): opening local bluetooth adapter failed")); }
+    let local_socket = unsafe { hci_open_dev(device_id) };
+    if local_socket < 0 { return Err(BtError::Desc(Cow::Borrowed("hci_open_dev(): opening local bluetooth adapter failed"))); }
 
-        let mut inquiry_infos = ::std::vec::from_elem(InquiryInfo::default(), 256);
+    let mut inquiry_infos = ::std::vec::from_elem(InquiryInfo::default(), 256);
 
-        let timout = 8; // 1.28 sec
-        let flags = IREQ_CACHE_FLUSH;
-        let number_responses = hci_inquiry(device_id, timout, inquiry_infos.len() as c_int, ptr::null(), &mut inquiry_infos[0], flags);
-        if number_responses < 0 {
-             return Err(Cow::Borrowed("hci_inquiry(): scanning remote bluetooth devices failed"));
-        }
-
-        inquiry_infos.truncate(number_responses as usize);
-
-        let mut devices = Vec::with_capacity(inquiry_infos.len());
-        for inquiry_info in &inquiry_infos {
-            let mut cname = [0 as c_char; 256];
-            let name = if hci_read_remote_name(local_socket, &inquiry_info.bdaddr, cname.len() as c_int, &mut cname[0], 0) < 0 {
-                "[unknown]".to_string()
-            } else {
-                CStr::from_ptr(&cname[0]).to_string_lossy().into_owned()
-            };
-
-            devices.push(BtDevice {
-                name: name,
-                addr: inquiry_info.bdaddr,
-            })
-        }
-
-        close(local_socket);
-
-        Ok(devices)
+    let timeout = 1; // 1.28 sec
+    let flags = IREQ_CACHE_FLUSH;
+    let number_responses = unsafe { hci_inquiry(device_id, timeout, inquiry_infos.len() as c_int,
+                                                ptr::null(), &mut (&mut inquiry_infos[0] as *mut InquiryInfo), flags) };
+    if number_responses < 0 {
+        return Err(BtError::Desc(Cow::Borrowed("hci_inquiry(): scanning remote bluetooth devices failed")));
     }
+
+    inquiry_infos.truncate(number_responses as usize);
+
+    let mut devices = Vec::with_capacity(inquiry_infos.len());
+    for inquiry_info in &inquiry_infos {
+        let mut cname = [0 as c_char; 256];
+        let name = if unsafe { hci_read_remote_name(local_socket, &inquiry_info.bdaddr, cname.len() as c_int, &mut cname[0], 0) } < 0 {
+            "[unknown]".to_string()
+        } else {
+            unsafe { CStr::from_ptr(&cname[0]) }.to_string_lossy().into_owned()
+        };
+
+        devices.push(BtDevice {
+            name: name,
+            addr: inquiry_info.bdaddr,
+        })
+    }
+
+    unsafe { close(local_socket) };
+
+    Ok(devices)
 }
 
 
@@ -95,10 +95,10 @@ pub mod native_bt_io {
     extern crate nix;
     extern crate mio;
 
-    pub use super::*;
+    use super::super::super::*;
+    use ::std::borrow::Cow;
     use ::std::mem;
     use ::std::error::Error;
-    use ::std::borrow::Cow;
     use ::std::os::unix::io::{AsRawFd, FromRawFd};
 
     const AF_BLUETOOTH : i32 = 31;
@@ -144,7 +144,7 @@ pub mod native_bt_io {
     pub fn new_mio(proto: BtProtocol) -> Result<mio::Io, BtError> {
         match proto {
             BtProtocol::RFCOMM => {
-                let fd = unsafe { libc::socket(AF_BLUETOOTH, libc::SOCK_STREAM, proto as i32) };
+                let fd = unsafe { libc::socket(AF_BLUETOOTH, libc::SOCK_STREAM, BtProtocolBlueZ::RFCOMM as i32) };
                 if fd < 0 {
                     Err(nix_error_to_bterror(nix::Error::last()))
                 } else {
