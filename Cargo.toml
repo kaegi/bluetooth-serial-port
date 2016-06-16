@@ -12,6 +12,7 @@ license = "MIT"
 mio = "^0.5.1"
 nix = "^0.4.1"
 libc = "^0.2.12"
+enum_primitive = "0.1"
 
 [features]
 # Feature to disable any tests which rely on hardware availability

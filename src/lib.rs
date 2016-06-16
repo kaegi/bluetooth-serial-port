@@ -1,3 +1,4 @@
+#[macro_use] extern crate enum_primitive;
 extern crate mio;
 extern crate nix;
 extern crate libc;
@@ -12,7 +13,9 @@ use std::borrow::Cow;
 #[cfg(target_os = "linux")]
 mod linux;
 #[cfg(target_os = "linux")]
-pub use linux::platform::*;
+use linux as platform;
+
+pub use linux::scan_devices;
 
 ///////////////////////////////////////
 // TODO: Windows implementation of functions
@@ -91,12 +94,16 @@ pub struct BtSocket {
 
 impl BtSocket {
     pub fn new(protocol: BtProtocol) -> Result<BtSocket, BtError> {
-        let io = try!(native_bt_io::new_mio(protocol));
+        let io = try!(platform::new_mio(protocol));
         Ok(From::from(io))
     }
 
     pub fn connect(&mut self, addr: BtAddr, rc_channel: u32) -> Result<(), BtError> {
-        native_bt_io::connect(&mut self.io, addr, rc_channel)
+        platform::connect(&mut self.io, addr, rc_channel)
+    }
+
+    pub fn connect_rfcomm(&mut self, addr: BtAddr) -> Result<(), BtError> {
+        platform::connect(&mut self.io, addr, try!(platform::get_rfcomm_channel(addr)) as u32)
     }
 }
 
