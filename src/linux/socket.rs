@@ -40,10 +40,12 @@ struct sockaddr_rc {
     rc_channel : u8
 }
 
-fn nix_error_to_bterror(error: nix::Error) -> BtError {
-    match nix::Error::last() {
-        nix::Error::Sys(errno) => BtError::Errno(errno as u32, error.description().to_string()),
-        nix::Error::InvalidPath => BtError::Unknown,
+impl From<nix::Error> for BtError {
+    fn from(e: nix::Error) -> BtError {
+        match e {
+            nix::Error::Sys(errno) => BtError::Errno(errno as u32, e.description().to_string()),
+            nix::Error::InvalidPath => BtError::Unknown,
+        }
     }
 }
 
@@ -52,7 +54,7 @@ pub fn new_mio(proto: BtProtocol) -> Result<mio::Io, BtError> {
         BtProtocol::RFCOMM => {
             let fd = unsafe { libc::socket(AF_BLUETOOTH, libc::SOCK_STREAM, BtProtocolBlueZ::RFCOMM as i32) };
             if fd < 0 {
-                Err(nix_error_to_bterror(nix::Error::last()))
+                Err(From::from(nix::Error::last()))
             } else {
                 Ok(mio::Io::from_raw_fd(fd))
             }
@@ -68,7 +70,7 @@ pub fn connect(io: &mut mio::Io, addr: BtAddr, rc_channel: u32) -> Result<(), Bt
     };
 
     if unsafe { libc::connect(io.as_raw_fd(), mem::transmute(&full_address), mem::size_of::<sockaddr_rc>() as u32) } < 0 {
-        Err(nix_error_to_bterror(nix::Error::last()))
+        Err(From::from(nix::Error::last()))
     } else {
         Ok(())
     }
