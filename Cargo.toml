@@ -6,7 +6,7 @@ description = "Interact with Bluetooth devices"
 repository = "https://github.com/ChangSpivey/bluetooth-rs"
 readme = "README.md"
 keywords = ["bluetooth", "RFCOMM", "SDP"]
-license = "MIT"
+license = "GPLv3"
 
 [dependencies]
 mio = "^0.5.1"
