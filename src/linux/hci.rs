@@ -56,7 +56,7 @@ pub fn scan_devices() -> Result<Vec<BtDevice>, BtError> {
     let timeout = 1; // 1.28 sec
     let flags = IREQ_CACHE_FLUSH;
     let number_responses = unsafe { hci_inquiry(device_id, timeout, inquiry_infos.len() as c_int,
-                                                ptr::null(), &mut (&mut inquiry_infos[0] as *mut InquiryInfo), flags) };
+                                                ptr::null(), &mut ::std::mem::transmute(&mut inquiry_infos[0]), flags) };
     if number_responses < 0 {
         return Err(BtError::Desc("hci_inquiry(): scanning remote bluetooth devices failed".to_string()));
     }
@@ -65,7 +65,7 @@ pub fn scan_devices() -> Result<Vec<BtDevice>, BtError> {
 
     let mut devices = Vec::with_capacity(inquiry_infos.len());
     for inquiry_info in &inquiry_infos {
-        let mut cname = [0 as c_char; 256];
+        let mut cname = [0; 256];
         let name = if unsafe { hci_read_remote_name(local_socket, &inquiry_info.bdaddr, cname.len() as c_int, &mut cname[0], 0) } < 0 {
             "[unknown]".to_string()
         } else {

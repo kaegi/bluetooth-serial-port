@@ -67,7 +67,7 @@ pub fn connect(io: &mut mio::Io, addr: BtAddr, rc_channel: u32) -> Result<(), Bt
         rc_channel : rc_channel as u8
     };
 
-    if unsafe { libc::connect(io.as_raw_fd(), &full_address as *const _ as *const libc::sockaddr, mem::size_of::<sockaddr_rc>() as u32) } < 0 {
+    if unsafe { libc::connect(io.as_raw_fd(), mem::transmute(&full_address), mem::size_of::<sockaddr_rc>() as u32) } < 0 {
         Err(nix_error_to_bterror(nix::Error::last()))
     } else {
         Ok(())

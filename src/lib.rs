@@ -1,3 +1,10 @@
+//! Interact with Bluetooth devices via RFCOMM channels.
+
+#![deny(missing_docs,
+        missing_debug_implementations, missing_copy_implementations,
+        trivial_casts, trivial_numeric_casts,
+        unstable_features,
+        unused_import_braces, unused_qualifications)]
 #[macro_use] extern crate enum_primitive;
 
 mod bluetooth;

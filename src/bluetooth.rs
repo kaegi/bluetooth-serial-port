@@ -9,6 +9,9 @@ use std::str;
 
 use platform;
 
+/// Finds a vector of Bluetooth devices in range.
+///
+/// This function blocks for some seconds.
 pub fn scan_devices() -> Result<Vec<BtDevice>, BtError> {
     platform::scan_devices()
 }
@@ -20,11 +23,17 @@ pub fn scan_devices() -> Result<Vec<BtDevice>, BtError> {
 // #[cfg(target_os = "windows")]
 // pub use windows::platform;
 
+/// Represents an error which occurred in this library.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum BtError {
+    /// No specific information is known.
     Unknown,
-    Errno(u32, String), // unix error numbers
-    Desc(String), // error with description
+
+    /// On Unix platforms: the error code and an explanation for this error code.
+    Errno(u32, String),
+
+    /// This error only has a description.
+    Desc(String),
 }
 
 impl std::fmt::Display for BtError {
@@ -34,6 +43,7 @@ impl std::fmt::Display for BtError {
 }
 
 
+/// A 6-byte long MAC address.
 #[repr(C, packed)]
 #[derive(Copy, Clone, PartialEq, Eq)]
 pub struct BtAddr(pub [u8; 6]);
@@ -45,30 +55,42 @@ impl std::fmt::Debug for BtAddr {
 }
 
 impl BtAddr {
+    /// Returns the MAC address `00:00:00:00:00:00`
     pub fn any () -> BtAddr {
         BtAddr ([0, 0, 0, 0, 0, 0])
     }
 
+    /// Converts a string of the format `XX:XX:XX:XX:XX:XX` to a `BtAddr`.
     pub fn from_str(_: &str) -> Option<BtAddr> {
         unimplemented!(); // TODO: implement BtAddr::from_str
     }
 
+    /// Converts `BtAddr` to a string of the format `XX:XX:XX:XX:XX:XX`.
     pub fn to_string(&self) -> String {
         format!("{:02X}:{:02X}:{:02X}:{:02X}:{:02X}:{:02X}", self.0[0], self.0[1], self.0[2], self.0[3], self.0[4], self.0[5])
     }
 }
 
 
+/// A device with its a name and address.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BtDevice {
+    /// The name of the device.
     pub name: String,
+
+    /// The MAC address of the device.
     pub addr: BtAddr,
 }
 
+/// The Bluetooth protocol you can use with this libary.
+///
+/// Will probably be always `RFCOMM`.
+#[derive(Clone, Copy, Debug)]
 pub enum BtProtocol {
     //L2CAP = BTPROTO_L2CAP,
     //HCI = BTPROTO_HCI,
     //SCO = BTPROTO_SCO,
+    /// Serial RFCOMM connection to a bluetooth device.
     RFCOMM,// = BTPROTO_RFCOMM,
     //BNEP = BTPROTO_BNEP,
     //CMTP = BTPROTO_CMTP,
@@ -77,27 +99,40 @@ pub enum BtProtocol {
 }
 
 impl BtDevice {
+    /// Create a new `BtDevice` manually from a name and addr.
     pub fn new(name: String, addr: BtAddr) -> BtDevice {
         BtDevice { name: name, addr: addr }
     }
 
 }
 
+/// The bluetooth socket.
+///
+/// Can be used in a `mio::EventLoop`.
+#[derive(Debug)]
 pub struct BtSocket {
     io: mio::Io,
 }
 
 
 impl BtSocket {
+    /// Create an (still) unconnected socket.
     pub fn new(protocol: BtProtocol) -> Result<BtSocket, BtError> {
         let io = try!(platform::new_mio(protocol));
         Ok(From::from(io))
     }
 
+    /// Connect to the RFCOMM service on remote device with address `addr` by specifing a channel.
+    ///
+    /// This function can block for some seconds.
     pub fn connect(&mut self, addr: BtAddr, rc_channel: u32) -> Result<(), BtError> {
         platform::connect(&mut self.io, addr, rc_channel)
     }
 
+    /// Connect to the RFCOMM service on remote device with address `addr`. Channel will be
+    /// determined through SDP protocol.
+    ///
+    /// This function can block for some seconds.
     pub fn connect_rfcomm(&mut self, addr: BtAddr) -> Result<(), BtError> {
         platform::connect(&mut self.io, addr, try!(platform::get_rfcomm_channel(addr)) as u32)
     }
