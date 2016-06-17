@@ -1,8 +1,8 @@
 [package]
-name = "bluetooth"
+name = "bluetooth-serial-port"
 version = "0.2.0"
 authors = ["Christopher James Halse Rogers <raof@ubuntu.com>", "Chang Spivey <chang.spivey@gmail.com>"]
-description = "Interact with Bluetooth devices"
+description = "Interact with Bluetooth devices via RFCOMM channels"
 repository = "https://github.com/ChangSpivey/bluetooth-rs"
 readme = "README.md"
 keywords = ["bluetooth", "RFCOMM", "SDP"]
