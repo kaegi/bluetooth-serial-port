@@ -1,11 +1,12 @@
 extern crate enum_primitive;
 
-use super::super::*;
 use super::ffi::*;
 
-use ::std::ptr;
-use ::std::os::raw::*;
-use ::std::mem;
+use bluetooth::{BtAddr, BtError};
+
+use std::ptr;
+use std::os::raw::*;
+use std::mem;
 use enum_primitive::FromPrimitive;
 
 #[repr(C)]

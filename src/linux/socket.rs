@@ -2,10 +2,10 @@ extern crate libc;
 extern crate nix;
 extern crate mio;
 
-use super::super::*;
-use ::std::mem;
-use ::std::error::Error;
-use ::std::os::unix::io::{AsRawFd, FromRawFd};
+use bluetooth::*;
+use std::mem;
+use std::error::Error;
+use std::os::unix::io::{AsRawFd, FromRawFd};
 
 const AF_BLUETOOTH : i32 = 31;
 

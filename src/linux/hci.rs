@@ -3,13 +3,14 @@ extern crate nix;
 extern crate mio;
 
 
-use super::super::*;
 use super::ffi::*;
 
+use bluetooth::{BtAddr, BtError, BtDevice};
+
 use self::libc::close;
-use ::std::os::raw::*;
-use ::std::ffi::CStr;
-use ::std::ptr;
+use std::os::raw::*;
+use std::ffi::CStr;
+use std::ptr;
 
 
 #[repr(C, packed)]
