@@ -4,7 +4,6 @@ use super::super::*;
 use super::ffi::*;
 
 use ::std::ptr;
-use ::std::borrow::Cow;
 use ::std::os::raw::*;
 use ::std::mem;
 use enum_primitive::FromPrimitive;
@@ -189,7 +188,7 @@ pub fn get_rfcomm_channel(addr: BtAddr) -> Result<u8, BtError> {
     let mut channel: Option<u8> = None;
 
     let session = unsafe { sdp_connect(&BtAddr::any(), &addr, SdpConnectFlags::RetryIfBusy as u32) };
-    if session == ptr::null_mut() { return Err(BtError::Desc(Cow::Borrowed("sdp_connect() failed"))) }
+    if session == ptr::null_mut() { return Err(BtError::Desc("sdp_connect() failed".to_string())) }
 
     // specify the UUID of the application we're searching for
     let mut service_uuid = uuid_t::default();
@@ -259,6 +258,6 @@ pub fn get_rfcomm_channel(addr: BtAddr) -> Result<u8, BtError> {
 
     match channel {
         Some(x) => return Ok(x),
-        None => Err(BtError::Desc(Cow::Borrowed("no RFCOMM service on remote device")))
+        None => Err(BtError::Desc("no RFCOMM service on remote device".to_string()))
     }
 }

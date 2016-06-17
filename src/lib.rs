@@ -6,7 +6,6 @@ extern crate libc;
 use std::result::Result;
 use std::io::{Read, Write};
 use std::str;
-use std::borrow::Cow;
 
 ///////////////////////////////////////
 // Linux implementation of functions
@@ -27,8 +26,8 @@ pub use linux::scan_devices;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum BtError {
     Unknown,
-    Errno(u32, Cow<'static, str>), // unix error numbers
-    Desc(Cow<'static, str>), // error with description
+    Errno(u32, String), // unix error numbers
+    Desc(String), // error with description
 }
 
 impl std::fmt::Display for BtError {

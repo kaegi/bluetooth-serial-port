@@ -9,7 +9,6 @@ use super::ffi::*;
 use self::libc::close;
 use ::std::os::raw::*;
 use ::std::ffi::CStr;
-use ::std::borrow::Cow;
 use ::std::ptr;
 
 
@@ -46,10 +45,10 @@ extern "C" {
 
 pub fn scan_devices() -> Result<Vec<BtDevice>, BtError> {
     let device_id = unsafe { hci_get_route(0 as *mut BtAddr) };
-    if device_id < 0 { return Err(BtError::Desc(Cow::Borrowed("hci_get_route(): no local bluetooth adapter found"))); }
+    if device_id < 0 { return Err(BtError::Desc("hci_get_route(): no local bluetooth adapter found".to_string())); }
 
     let local_socket = unsafe { hci_open_dev(device_id) };
-    if local_socket < 0 { return Err(BtError::Desc(Cow::Borrowed("hci_open_dev(): opening local bluetooth adapter failed"))); }
+    if local_socket < 0 { return Err(BtError::Desc("hci_open_dev(): opening local bluetooth adapter failed".to_string())); }
 
     let mut inquiry_infos = ::std::vec::from_elem(InquiryInfo::default(), 256);
 
@@ -58,7 +57,7 @@ pub fn scan_devices() -> Result<Vec<BtDevice>, BtError> {
     let number_responses = unsafe { hci_inquiry(device_id, timeout, inquiry_infos.len() as c_int,
                                                 ptr::null(), &mut (&mut inquiry_infos[0] as *mut InquiryInfo), flags) };
     if number_responses < 0 {
-        return Err(BtError::Desc(Cow::Borrowed("hci_inquiry(): scanning remote bluetooth devices failed")));
+        return Err(BtError::Desc("hci_inquiry(): scanning remote bluetooth devices failed".to_string()));
     }
 
     inquiry_infos.truncate(number_responses as usize);

@@ -3,7 +3,6 @@ extern crate nix;
 extern crate mio;
 
 use super::super::*;
-use ::std::borrow::Cow;
 use ::std::mem;
 use ::std::error::Error;
 use ::std::os::unix::io::{AsRawFd, FromRawFd};
@@ -43,7 +42,7 @@ struct sockaddr_rc {
 
 fn nix_error_to_bterror(error: nix::Error) -> BtError {
     match nix::Error::last() {
-        nix::Error::Sys(errno) => BtError::Errno(errno as u32, Cow::Owned(error.description().to_string())),
+        nix::Error::Sys(errno) => BtError::Errno(errno as u32, error.description().to_string()),
         nix::Error::InvalidPath => BtError::Unknown,
     }
 }
