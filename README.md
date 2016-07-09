@@ -2,7 +2,7 @@
 
 Rust library for interacting with the Bluetooth stack via RFCOMM channels.
 
-This library currently only works Linux.
+This library currently only works on Linux.
 
 Cargo.toml:
 
