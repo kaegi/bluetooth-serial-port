@@ -2,7 +2,8 @@
 
 Rust library for interacting with the Bluetooth stack via RFCOMM channels.
 
-This library currently only works on Linux.
+This library currently only works on Linux/BlueZ. You can find it on
+[crates.io](https://crates.io/crates/bluetooth-serial-port).
 
 Cargo.toml:
 
