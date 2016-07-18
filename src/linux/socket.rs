@@ -5,7 +5,7 @@ extern crate mio;
 use bluetooth::*;
 use std::mem;
 use std::error::Error;
-use std::os::unix::io::{AsRawFd, FromRawFd};
+use std::os::unix::io::AsRawFd;
 
 const AF_BLUETOOTH : i32 = 31;
 
