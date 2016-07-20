@@ -197,7 +197,7 @@ mod tests {
             Err(_) => panic!("")
         }
 
-        let fail_strings = ["addr : String", "00:00:00:00:00", "00:00:00:00:00:00:00", "-00:00:00:00:00:00"];
+        let fail_strings = ["addr : String", "00:00:00:00:00", "00:00:00:00:00:00:00", "-00:00:00:00:00:00", "0G:00:00:00:00:00"];
         for &s in &fail_strings {
             match BtAddr::from_str(s) {
                 Ok(_) => panic!("Somehow managed to parse \"{}\" as an address?!", s),
@@ -225,5 +225,11 @@ mod tests {
     #[test()]
     fn creates_rfcomm_socket() {
         BtSocket::new(BtProtocol::RFCOMM).unwrap();
+    }
+
+    #[cfg(not(feature = "test_without_hardware"))]
+    #[test()]
+    fn scans_devices() {
+        scan_devices().unwrap();
     }
 }
