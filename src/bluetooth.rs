@@ -61,8 +61,19 @@ impl BtAddr {
     }
 
     /// Converts a string of the format `XX:XX:XX:XX:XX:XX` to a `BtAddr`.
-    pub fn from_str(_: &str) -> Option<BtAddr> {
-        unimplemented!(); // TODO: implement BtAddr::from_str
+    pub fn from_str(s: &str) -> Result<BtAddr, ()> {
+        let splits_iter = s.split(':');
+        let mut addr = BtAddr::any();
+        let mut i = 0;
+        for split_str in splits_iter {
+            if i == 6 || split_str.len() != 2 { return Err(()); } // only 6 values (0 <= i <= 5) are allowed
+            let high = try!((split_str.as_bytes()[0] as char).to_digit(16).ok_or(()));
+            let low = try!((split_str.as_bytes()[1] as char).to_digit(16).ok_or(()));
+            addr.0[i] = (high * 16 + low) as u8;
+            i += 1;
+        }
+        if i != 6 { return Err(()) }
+        Ok(addr)
     }
 
     /// Converts `BtAddr` to a string of the format `XX:XX:XX:XX:XX:XX`.
@@ -181,35 +192,38 @@ mod tests {
 
     #[test()]
     fn btaddr_from_string() {
-        match BtAddr::from_string("addr : String") {
-            Some(_) => panic!("Somehow managed to parse \"addr : String\" as an address?!"),
-            None => ()
+        match BtAddr::from_str("00:00:00:00:00:00") {
+            Ok(addr) => assert_eq!(addr, BtAddr([0u8; 6])),
+            Err(_) => panic!("")
         }
 
-        match BtAddr::from_string("00:00:00:00:00:00") {
-            Some(addr) => assert_eq!(addr, BtAddr([0u8; 6])),
-            None => panic!("")
+        let fail_strings = ["addr : String", "00:00:00:00:00", "00:00:00:00:00:00:00", "-00:00:00:00:00:00"];
+        for &s in &fail_strings {
+            match BtAddr::from_str(s) {
+                Ok(_) => panic!("Somehow managed to parse \"{}\" as an address?!", s),
+                Err(_) => ()
+            }
         }
     }
 
     #[test()]
     fn btaddr_to_string() {
         assert_eq!(BtAddr::any().to_string(), "00:00:00:00:00:00");
-        assert_eq!(BtAddr([1, 2, 3, 4, 5, 6]).to_string(), "06:05:04:03:02:01");
+        assert_eq!(BtAddr([1, 2, 3, 4, 5, 6]).to_string(), "01:02:03:04:05:06");
     }
 
     #[test()]
-    fn btaddr_roundtrips_to_from_string() {
+    fn btaddr_roundtrips_to_from_str() {
         let addr = BtAddr([0, 22, 4, 1, 33, 192]);
         let addr_string = "00:ff:ee:ee:dd:12";
 
-        assert_eq!(addr, BtAddr::from_string(&addr.to_string()).unwrap());
-        assert!(addr_string.eq_ignore_ascii_case(&BtAddr::from_string(addr_string).unwrap().to_string()));
+        assert_eq!(addr, BtAddr::from_str(&addr.to_string()).unwrap());
+        assert!(addr_string.eq_ignore_ascii_case(&BtAddr::from_str(addr_string).unwrap().to_string()));
     }
 
     #[cfg(not(feature = "test_without_hardware"))]
     #[test()]
     fn creates_rfcomm_socket() {
-        BtSocket::new(BluetoothProtocol::RFCOMM).unwrap();
+        BtSocket::new(BtProtocol::RFCOMM).unwrap();
     }
 }
