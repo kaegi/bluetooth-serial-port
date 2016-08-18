@@ -2,10 +2,49 @@ extern crate libc;
 extern crate nix;
 extern crate mio;
 
-use bluetooth::*;
+use bluetooth::{BtError, BtAddr, BtProtocol};
+use platform::get_rfcomm_channel;
+use std;
+use std::io::{Read, Write};
 use std::mem;
 use std::error::Error;
 use std::os::unix::io::AsRawFd;
+
+#[derive(Debug)]
+pub struct BtSocket {
+    io: mio::Io,
+}
+
+
+impl BtSocket {
+    pub fn new(proto: BtProtocol) -> Result<BtSocket, BtError> {
+        match proto {
+            BtProtocol::RFCOMM => {
+                let fd = unsafe { libc::socket(AF_BLUETOOTH, libc::SOCK_STREAM, BtProtocolBlueZ::RFCOMM as i32) };
+                if fd < 0 {
+                    return Err(From::from(nix::Error::last()));
+                } else {
+                    Ok(From::from(mio::Io::from_raw_fd(fd)))
+                }
+            }
+        }
+    }
+
+    pub fn connect(&mut self, addr: BtAddr) -> Result<(), BtError> {
+        let full_address : sockaddr_rc = sockaddr_rc {
+            rc_family : AF_BLUETOOTH as u16,
+            rc_bdaddr : addr,
+            rc_channel : try!(get_rfcomm_channel(addr))
+        };
+
+        if unsafe { libc::connect(self.io.as_raw_fd(), mem::transmute(&full_address), mem::size_of::<sockaddr_rc>() as u32) } < 0 {
+            Err(From::from(nix::Error::last()))
+        } else {
+            Ok(())
+        }
+    }
+}
+
 
 const AF_BLUETOOTH : i32 = 31;
 
@@ -49,29 +88,36 @@ impl From<nix::Error> for BtError {
     }
 }
 
-pub fn new_mio(proto: BtProtocol) -> Result<mio::Io, BtError> {
-    match proto {
-        BtProtocol::RFCOMM => {
-            let fd = unsafe { libc::socket(AF_BLUETOOTH, libc::SOCK_STREAM, BtProtocolBlueZ::RFCOMM as i32) };
-            if fd < 0 {
-                Err(From::from(nix::Error::last()))
-            } else {
-                Ok(mio::Io::from_raw_fd(fd))
-            }
-        }
+impl From<mio::Io> for BtSocket {
+    fn from(io : mio::Io) -> BtSocket { BtSocket { io : io } }
+}
+
+impl mio::Evented for BtSocket {
+    fn register(&self, selector: &mut mio::Selector, token: mio::Token, interest: mio::EventSet, opts: mio::PollOpt) -> std::io::Result<()> {
+        self.io.register(selector, token, interest, opts)
+    }
+
+    fn reregister(&self, selector: &mut mio::Selector, token: mio::Token, interest: mio::EventSet, opts: mio::PollOpt) -> std::io::Result<()> {
+        self.io.reregister(selector, token, interest, opts)
+    }
+
+    fn deregister(&self, selector: &mut mio::Selector) -> std::io::Result<()> {
+        self.io.deregister(selector)
     }
 }
 
-pub fn connect(io: &mut mio::Io, addr: BtAddr, rc_channel: u32) -> Result<(), BtError> {
-    let full_address : sockaddr_rc = sockaddr_rc {
-        rc_family : AF_BLUETOOTH as u16,
-        rc_bdaddr : addr,
-        rc_channel : rc_channel as u8
-    };
+impl Read for BtSocket {
+    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+        self.io.read(buf)
+    }
+}
 
-    if unsafe { libc::connect(io.as_raw_fd(), mem::transmute(&full_address), mem::size_of::<sockaddr_rc>() as u32) } < 0 {
-        Err(From::from(nix::Error::last()))
-    } else {
-        Ok(())
+impl Write for BtSocket {
+    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+        self.io.write(buf)
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        self.io.flush()
     }
 }

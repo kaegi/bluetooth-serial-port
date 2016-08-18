@@ -12,7 +12,17 @@ Cargo.toml:
 bluetooth-serial-port = "0.2"
 ```
 
-Example:
+Important functions:
+
+```rust
+bluetooth_serial_port::scan_devices()
+BtSocket::new()
+BtSocket::connect()
+BtSocket::read()
+BtSocket::write()
+```
+
+Full example:
 
 ```rust
 extern crate bluetooth_serial_port;
@@ -23,30 +33,34 @@ use mio::{EventLoop, Handler, PollOpt, Token, EventSet};
 
 // warning: you really should do some error handling in real code...
 
-// scan for devices
-let devices = bluetooth_serial_port::scan_devices().expect("scan_devices() failed");
-if devices.len() == 0 { panic!("No devices found"); }
+fn main() {
+    // scan for devices
+    let devices = bluetooth_serial_port::scan_devices().unwrap();
+    if devices.len() == 0 { panic!("No devices found"); }
 
-// "device.name" is name string ot the device
-// "device.addr" is the MAC address of the device
-let device = &devices[0];
-println!("Connecting to `{}` ({})", device.name, device.addr.to_string());
+    // "device.name" is name string ot the device
+    // "device.addr" is the MAC address of the device
+    let device = &devices[0];
+    println!("Connecting to `{}` ({})", device.name, device.addr.to_string());
 
-// create and connect the RFCOMM socket
-let mut socket = BtSocket::new(BtProtocol::RFCOMM).unwrap();
-socket.connect_rfcomm(device.addr).unwrap();
+    // create and connect the RFCOMM socket
+    let mut socket = BtSocket::new(BtProtocol::RFCOMM).unwrap();
+    socket.connect(device.addr).unwrap();
 
-// BtSocket implements the `Read` and `Write` traits (they're blocking)
-let mut buffer = [0; 10];
-let num_bytes_read = socket.read(&mut buffer[..]).expect("Reading bytes failed");
-let num_bytes_written = socket.write(&buffer[0..num_bytes_read]).expect("Writing bytes failed");
-println!("Read `{}` bytes, wrote `{}` bytes", num_bytes_read, num_bytes_written);
+    // BtSocket implements the `Read` and `Write` traits (they're blocking)
+    let mut buffer = [0; 10];
+    let num_bytes_read = socket.read(&mut buffer[..]).unwrap();
+    let num_bytes_written = socket.write(&buffer[0..num_bytes_read]).unwrap();
+    println!("Read `{}` bytes, wrote `{}` bytes", num_bytes_read, num_bytes_written);
 
-// BtSocket also implements `mio::Evented` for async IO
-let mut event_loop = EventLoop::new().unwrap();
-event_loop.register(&socket, Token(0), EventSet::readable() | EventSet::writable(),
-                    PollOpt::edge() | PollOpt::oneshot()).expect("Registering event failed");
+    // BtSocket also implements `mio::Evented` for async IO
+    let mut event_loop = EventLoop::new().unwrap();
+    event_loop.register(&socket, Token(0), EventSet::readable() | EventSet::writable(),
+    PollOpt::edge() | PollOpt::oneshot()).unwrap();
 
-// run event loop with some handler...
-event_loop.run(&mut NoopHandler).expect("EventLoop failed");
+    // run event loop with some handler...
+    struct NoopHandler;
+    impl Handler for NoopHandler { type Timeout = (); type Message = (); }
+    event_loop.run(&mut NoopHandler).unwrap();
+}
 ```

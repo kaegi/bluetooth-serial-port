@@ -1,6 +1,6 @@
 [package]
 name = "bluetooth-serial-port"
-version = "0.2.1"
+version = "0.3.0"
 authors = ["Christopher James Halse Rogers <raof@ubuntu.com>", "Chang Spivey <chang.spivey@gmail.com>"]
 description = "Interact with Bluetooth devices via RFCOMM channels"
 repository = "https://github.com/ChangSpivey/bluetooth-serial-port"

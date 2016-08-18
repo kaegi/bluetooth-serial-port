@@ -1,13 +1,68 @@
-extern crate mio;
-extern crate nix;
-extern crate libc;
 
 use std;
 use std::result::Result;
 use std::io::{Read, Write};
 use std::str;
+use mio;
 
 use platform;
+
+/// The bluetooth socket.
+///
+/// Can be used in a `mio::EventLoop`.
+#[derive(Debug)]
+pub struct BtSocket(platform::BtSocket);
+
+impl BtSocket {
+    /// Create an (still) unconnected socket.
+    pub fn new(protocol: BtProtocol) -> Result<BtSocket, BtError> {
+        Ok(From::from(try!(platform::BtSocket::new(protocol))))
+    }
+
+    /// Connect to the RFCOMM service on remote device with address `addr`. Channel will be
+    /// determined through SDP protocol.
+    ///
+    /// This function can block for some seconds.
+    pub fn connect(&mut self, addr: BtAddr) -> Result<(), BtError> {
+        self.0.connect(addr)
+    }
+}
+
+impl From<platform::BtSocket> for BtSocket {
+    fn from(socket: platform::BtSocket) -> BtSocket {
+        BtSocket(socket)
+    }
+}
+
+impl mio::Evented for BtSocket {
+    fn register(&self, poll: &mut mio::Selector, token: mio::Token, interest: mio::EventSet, opts: mio::PollOpt) -> std::io::Result<()> {
+        self.0.register(poll, token, interest, opts)
+    }
+
+    fn reregister(&self, selector: &mut mio::Selector, token: mio::Token, interest: mio::EventSet, opts: mio::PollOpt) -> std::io::Result<()> {
+        self.0.reregister(selector, token, interest, opts)
+    }
+
+    fn deregister(&self, selector: &mut mio::Selector) -> std::io::Result<()> {
+        self.0.deregister(selector)
+    }
+}
+
+impl Read for BtSocket {
+    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+        self.0.read(buf)
+    }
+}
+
+impl Write for BtSocket {
+    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+        self.0.write(buf)
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        self.0.flush()
+    }
+}
 
 /// Finds a vector of Bluetooth devices in range.
 ///
@@ -117,73 +172,6 @@ impl BtDevice {
 
 }
 
-/// The bluetooth socket.
-///
-/// Can be used in a `mio::EventLoop`.
-#[derive(Debug)]
-pub struct BtSocket {
-    io: mio::Io,
-}
-
-
-impl BtSocket {
-    /// Create an (still) unconnected socket.
-    pub fn new(protocol: BtProtocol) -> Result<BtSocket, BtError> {
-        let io = try!(platform::new_mio(protocol));
-        Ok(From::from(io))
-    }
-
-    /// Connect to the RFCOMM service on remote device with address `addr` by specifing a channel.
-    ///
-    /// This function can block for some seconds.
-    pub fn connect(&mut self, addr: BtAddr, rc_channel: u32) -> Result<(), BtError> {
-        platform::connect(&mut self.io, addr, rc_channel)
-    }
-
-    /// Connect to the RFCOMM service on remote device with address `addr`. Channel will be
-    /// determined through SDP protocol.
-    ///
-    /// This function can block for some seconds.
-    pub fn connect_rfcomm(&mut self, addr: BtAddr) -> Result<(), BtError> {
-        platform::connect(&mut self.io, addr, try!(platform::get_rfcomm_channel(addr)) as u32)
-    }
-}
-
-impl From<mio::Io> for BtSocket {
-    fn from(io : mio::Io) -> BtSocket {
-        BtSocket { io : io }
-    }
-}
-
-impl mio::Evented for BtSocket {
-    fn register(&self, selector: &mut mio::Selector, token: mio::Token, interest: mio::EventSet, opts: mio::PollOpt) -> std::io::Result<()> {
-        self.io.register(selector, token, interest, opts)
-    }
-
-    fn reregister(&self, selector: &mut mio::Selector, token: mio::Token, interest: mio::EventSet, opts: mio::PollOpt) -> std::io::Result<()> {
-        self.io.reregister(selector, token, interest, opts)
-    }
-
-    fn deregister(&self, selector: &mut mio::Selector) -> std::io::Result<()> {
-        self.io.deregister(selector)
-    }
-}
-
-impl Read for BtSocket {
-    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
-        self.io.read(buf)
-    }
-}
-
-impl Write for BtSocket {
-    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
-        self.io.write(buf)
-    }
-
-    fn flush(&mut self) -> std::io::Result<()> {
-        self.io.flush()
-    }
-}
 
 #[cfg(test)]
 mod tests {

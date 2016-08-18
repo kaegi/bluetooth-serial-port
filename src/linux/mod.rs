@@ -5,6 +5,6 @@ mod sdp;
 mod hci;
 mod socket;
 
-pub use self::socket::*;
-pub use self::hci::*;
-pub use self::sdp::*;
+pub use self::socket::BtSocket;
+pub use self::hci::scan_devices;
+pub use self::sdp::get_rfcomm_channel;
