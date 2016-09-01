@@ -9,7 +9,7 @@ Cargo.toml:
 
 ```toml
 [dependencies]
-bluetooth-serial-port = "0.2"
+bluetooth-serial-port = "0.3"
 ```
 
 Important functions:
