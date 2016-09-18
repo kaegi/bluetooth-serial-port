@@ -35,16 +35,16 @@ impl From<platform::BtSocket> for BtSocket {
 }
 
 impl mio::Evented for BtSocket {
-    fn register(&self, poll: &mut mio::Selector, token: mio::Token, interest: mio::EventSet, opts: mio::PollOpt) -> std::io::Result<()> {
+    fn register(&self, poll: &mio::Poll, token: mio::Token, interest: mio::Ready, opts: mio::PollOpt) -> std::io::Result<()> {
         self.0.register(poll, token, interest, opts)
     }
 
-    fn reregister(&self, selector: &mut mio::Selector, token: mio::Token, interest: mio::EventSet, opts: mio::PollOpt) -> std::io::Result<()> {
-        self.0.reregister(selector, token, interest, opts)
+    fn reregister(&self, poll: &mio::Poll, token: mio::Token, interest: mio::Ready, opts: mio::PollOpt) -> std::io::Result<()> {
+        self.0.reregister(poll, token, interest, opts)
     }
 
-    fn deregister(&self, selector: &mut mio::Selector) -> std::io::Result<()> {
-        self.0.deregister(selector)
+    fn deregister(&self, poll: &mio::Poll) -> std::io::Result<()> {
+        self.0.deregister(poll)
     }
 }
 

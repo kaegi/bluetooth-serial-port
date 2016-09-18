@@ -9,10 +9,12 @@ use std::io::{Read, Write};
 use std::mem;
 use std::error::Error;
 use std::os::unix::io::AsRawFd;
+use mio::{Poll, Ready};
+use mio::deprecated::unix::Io; // TODO: mio::Io is deprecated
 
 #[derive(Debug)]
 pub struct BtSocket {
-    io: mio::Io,
+    io: Io,
 }
 
 
@@ -24,7 +26,7 @@ impl BtSocket {
                 if fd < 0 {
                     return Err(From::from(nix::Error::last()));
                 } else {
-                    Ok(From::from(mio::Io::from_raw_fd(fd)))
+                    Ok(From::from(Io::from_raw_fd(fd)))
                 }
             }
         }
@@ -88,21 +90,21 @@ impl From<nix::Error> for BtError {
     }
 }
 
-impl From<mio::Io> for BtSocket {
-    fn from(io : mio::Io) -> BtSocket { BtSocket { io : io } }
+impl From<Io> for BtSocket {
+    fn from(io : Io) -> BtSocket { BtSocket { io : io } }
 }
 
 impl mio::Evented for BtSocket {
-    fn register(&self, selector: &mut mio::Selector, token: mio::Token, interest: mio::EventSet, opts: mio::PollOpt) -> std::io::Result<()> {
-        self.io.register(selector, token, interest, opts)
+    fn register(&self, poll: &Poll, token: mio::Token, interest: Ready, opts: mio::PollOpt) -> std::io::Result<()> {
+        self.io.register(poll, token, interest, opts)
     }
 
-    fn reregister(&self, selector: &mut mio::Selector, token: mio::Token, interest: mio::EventSet, opts: mio::PollOpt) -> std::io::Result<()> {
-        self.io.reregister(selector, token, interest, opts)
+    fn reregister(&self, poll: &Poll, token: mio::Token, interest: Ready, opts: mio::PollOpt) -> std::io::Result<()> {
+        self.io.reregister(poll, token, interest, opts)
     }
 
-    fn deregister(&self, selector: &mut mio::Selector) -> std::io::Result<()> {
-        self.io.deregister(selector)
+    fn deregister(&self, poll: &Poll) -> std::io::Result<()> {
+        self.io.deregister(poll)
     }
 }
 

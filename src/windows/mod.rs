@@ -2,6 +2,7 @@ use bluetooth::{BtAddr, BtError, BtDevice, BtProtocol};
 use mio;
 use std;
 use std::io::{Read, Write};
+use mio::{Poll, Ready};
 
 #[derive(Debug)]
 #[allow(missing_copy_implementations)]
@@ -19,15 +20,15 @@ impl BtSocket {
 }
 
 impl mio::Evented for BtSocket {
-    fn register(&self, selector: &mut mio::Selector, token: mio::Token, interest: mio::EventSet, opts: mio::PollOpt) -> std::io::Result<()> {
+    fn register(&self, poll: &Poll, token: mio::Token, interest: Ready, opts: mio::PollOpt) -> std::io::Result<()> {
         unimplemented!();
     }
 
-    fn reregister(&self, selector: &mut mio::Selector, token: mio::Token, interest: mio::EventSet, opts: mio::PollOpt) -> std::io::Result<()> {
+    fn reregister(&self, poll: &Poll, token: mio::Token, interest: Ready, opts: mio::PollOpt) -> std::io::Result<()> {
         unimplemented!();
     }
 
-    fn deregister(&self, selector: &mut mio::Selector) -> std::io::Result<()> {
+    fn deregister(&self, poll: &Poll) -> std::io::Result<()> {
         unimplemented!();
     }
 }

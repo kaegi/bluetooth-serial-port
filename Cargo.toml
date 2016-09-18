@@ -9,8 +9,8 @@ keywords = ["bluetooth", "RFCOMM", "SDP", "SPP"]
 license = "GPL-3.0"
 
 [dependencies]
-mio = "0.5"
-nix = "0.6.0"
+mio = "0.6"
+nix = "0.7.0"
 libc = "0.2"
 enum_primitive = "0.1"
 
