@@ -8,13 +8,14 @@ use std;
 use std::io::{Read, Write};
 use std::mem;
 use std::error::Error;
-use std::os::unix::io::AsRawFd;
+use std::os::unix::io::{RawFd, FromRawFd, AsRawFd};
 use mio::{Poll, Ready};
-use mio::deprecated::unix::Io; // TODO: mio::Io is deprecated
+use std::os::unix::net::UnixStream;
+use mio::unix::EventedFd;
 
 #[derive(Debug)]
 pub struct BtSocket {
-    io: Io,
+    stream: UnixStream,
 }
 
 
@@ -26,7 +27,7 @@ impl BtSocket {
                 if fd < 0 {
                     return Err(From::from(nix::Error::last()));
                 } else {
-                    Ok(From::from(Io::from_raw_fd(fd)))
+                    Ok(BtSocket::from(fd))
                 }
             }
         }
@@ -39,7 +40,7 @@ impl BtSocket {
             rc_channel : try!(get_rfcomm_channel(addr))
         };
 
-        if unsafe { libc::connect(self.io.as_raw_fd(), mem::transmute(&full_address), mem::size_of::<sockaddr_rc>() as u32) } < 0 {
+        if unsafe { libc::connect(self.stream.as_raw_fd(), mem::transmute(&full_address), mem::size_of::<sockaddr_rc>() as u32) } < 0 {
             Err(From::from(nix::Error::last()))
         } else {
             Ok(())
@@ -90,36 +91,38 @@ impl From<nix::Error> for BtError {
     }
 }
 
-impl From<Io> for BtSocket {
-    fn from(io : Io) -> BtSocket { BtSocket { io : io } }
+impl From<RawFd> for BtSocket {
+    fn from(rawfd: RawFd) -> BtSocket {
+        BtSocket { stream: unsafe { UnixStream::from_raw_fd(rawfd) }, }
+    }
 }
 
 impl mio::Evented for BtSocket {
     fn register(&self, poll: &Poll, token: mio::Token, interest: Ready, opts: mio::PollOpt) -> std::io::Result<()> {
-        self.io.register(poll, token, interest, opts)
+        EventedFd(&self.stream.as_raw_fd()).register(poll, token, interest, opts)
     }
 
     fn reregister(&self, poll: &Poll, token: mio::Token, interest: Ready, opts: mio::PollOpt) -> std::io::Result<()> {
-        self.io.reregister(poll, token, interest, opts)
+        EventedFd(&self.stream.as_raw_fd()).reregister(poll, token, interest, opts)
     }
 
     fn deregister(&self, poll: &Poll) -> std::io::Result<()> {
-        self.io.deregister(poll)
+        EventedFd(&self.stream.as_raw_fd()).deregister(poll)
     }
 }
 
 impl Read for BtSocket {
     fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
-        self.io.read(buf)
+        self.stream.read(buf)
     }
 }
 
 impl Write for BtSocket {
     fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
-        self.io.write(buf)
+        self.stream.write(buf)
     }
 
     fn flush(&mut self) -> std::io::Result<()> {
-        self.io.flush()
+        self.stream.flush()
     }
 }
