@@ -19,13 +19,19 @@ pub struct BtSocket {
 }
 
 
+pub fn make_error(message: &'static str) -> BtError {
+    let nix_error = nix::Error::last();
+    BtError::Errno(nix_error.errno() as u32, format!("{:}: {:}", message, nix_error.description()))
+}
+
+
 impl BtSocket {
     pub fn new(proto: BtProtocol) -> Result<BtSocket, BtError> {
         match proto {
             BtProtocol::RFCOMM => {
                 let fd = unsafe { libc::socket(AF_BLUETOOTH, libc::SOCK_STREAM, BtProtocolBlueZ::RFCOMM as i32) };
                 if fd < 0 {
-                    return Err(From::from(nix::Error::last()));
+                    Err(make_error("Failed to create Bluetooth socket"))
                 } else {
                     Ok(BtSocket::from(fd))
                 }
@@ -43,7 +49,7 @@ impl BtSocket {
         };
 
         if unsafe { libc::connect(self.stream.as_raw_fd(), mem::transmute(&full_address), mem::size_of::<sockaddr_rc>() as u32) } < 0 {
-            Err(From::from(nix::Error::last()))
+            Err(make_error("Failed to connect() to target device"))
         } else {
             Ok(())
         }
@@ -86,10 +92,7 @@ struct sockaddr_rc {
 
 impl From<nix::Error> for BtError {
     fn from(e: nix::Error) -> BtError {
-        match e {
-            nix::Error::Sys(errno) => BtError::Errno(errno as u32, e.description().to_string()),
-            nix::Error::InvalidPath => BtError::Unknown,
-        }
+        BtError::Errno(e.errno() as u32, e.description().to_string())
     }
 }
 
