@@ -74,7 +74,7 @@ pub fn scan_devices() -> Result<Vec<BtDevice>, BtError> {
 
         devices.push(BtDevice {
             name: name,
-            addr: inquiry_info.bdaddr,
+            addr: inquiry_info.bdaddr.convert_host_byteorder(),
         })
     }
 
