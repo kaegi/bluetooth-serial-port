@@ -34,6 +34,8 @@ impl BtSocket {
     }
 
     pub fn connect(&mut self, addr: BtAddr) -> Result<(), BtError> {
+        let addr = addr.convert_host_byteorder();
+        
         let full_address : sockaddr_rc = sockaddr_rc {
             rc_family : AF_BLUETOOTH as u16,
             rc_bdaddr : addr,

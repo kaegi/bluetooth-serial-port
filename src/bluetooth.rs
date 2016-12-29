@@ -115,6 +115,30 @@ impl BtAddr {
         BtAddr ([0, 0, 0, 0, 0, 0])
     }
 
+    /// Linux lower-layers actually hold the address in native byte-order
+    /// althrough they are always displayed in network byte-order
+    #[doc(hidden)]
+    #[inline(always)]
+    #[cfg(target_endian = "little")]
+    pub fn convert_host_byteorder(mut self) -> BtAddr {
+        {
+            let (value_1, value_2) = (&mut self.0).split_at_mut(3);
+            std::mem::swap(&mut value_1[0], &mut value_2[2]);
+            std::mem::swap(&mut value_1[1], &mut value_2[1]);
+            std::mem::swap(&mut value_1[2], &mut value_2[0]);
+        }
+
+        self
+    }
+
+    #[doc(hidden)]
+    #[inline(always)]
+    #[cfg(target_endian = "big")]
+    pub fn convert_host_byteorder(self) -> BtAddr {
+        // Public address structure contents are always big-endian
+        self
+    }
+
     /// Converts a string of the format `XX:XX:XX:XX:XX:XX` to a `BtAddr`.
     pub fn from_str(s: &str) -> Result<BtAddr, ()> {
         let splits_iter = s.split(':');
