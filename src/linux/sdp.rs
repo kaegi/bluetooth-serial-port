@@ -1,6 +1,7 @@
 extern crate enum_primitive;
 
 use super::ffi::*;
+use super::socket::make_error;
 
 use bluetooth::{BtAddr, BtError};
 
@@ -173,7 +174,7 @@ extern "C" {
         search: *const sdp_list_t,
         reqtype: SdpAttrReqType,
         attrid_list: *const sdp_list_t,
-        rsp_list: *mut *mut sdp_list_t) -> *mut sdp_record_t;
+        rsp_list: *mut *mut sdp_list_t) -> c_int;
 
     fn sdp_get_access_protos(rec: *const sdp_record_t,
     protos: *mut *mut sdp_list_t) -> c_int;
@@ -189,7 +190,9 @@ pub fn get_rfcomm_channel(addr: BtAddr) -> Result<u8, BtError> {
     let mut channel: Option<u8> = None;
 
     let session = unsafe { sdp_connect(&BtAddr::any(), &addr, SdpConnectFlags::RetryIfBusy as u32) };
-    if session == ptr::null_mut() { return Err(BtError::Desc("sdp_connect() failed".to_string())) }
+    if session == ptr::null_mut() {
+        return Err(make_error("sdp_connect(): Bluetooth device not accessible"));
+    }
 
     // specify the UUID of the application we're searching for
     let mut service_uuid = uuid_t::default();
@@ -203,7 +206,9 @@ pub fn get_rfcomm_channel(addr: BtAddr) -> Result<u8, BtError> {
 
     // get a list of service records that have the serial port UUID
     let mut response_list: *mut sdp_list_t = ptr::null_mut();
-    unsafe { sdp_service_search_attr_req( session, search_list, SdpAttrReqType::Range, attrid_list, &mut response_list) };
+    if unsafe { sdp_service_search_attr_req( session, search_list, SdpAttrReqType::Range, attrid_list, &mut response_list) } < 0 {
+    	return Err(make_error("sdp_service_search_attr_req(): Service record search on Bluetooth device failed"));
+    }
 
     // go through each of the service records
     let mut r = response_list;
@@ -255,10 +260,12 @@ pub fn get_rfcomm_channel(addr: BtAddr) -> Result<u8, BtError> {
         unsafe{ sdp_record_free(record); }
     }
 
-    unsafe{ sdp_close(session) };
+    if unsafe { sdp_close(session) } < 0 {
+        return Err(make_error("sdp_close()"));
+    }
 
     match channel {
         Some(x) => return Ok(x),
-        None => Err(BtError::Desc("no RFCOMM service on remote device".to_string()))
+        None => Err(BtError::Desc("No RFCOMM service on remote device".to_string()))
     }
 }

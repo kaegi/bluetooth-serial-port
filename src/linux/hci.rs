@@ -4,6 +4,7 @@ extern crate mio;
 
 
 use super::ffi::*;
+use super::socket::make_error;
 
 use bluetooth::{BtAddr, BtError, BtDevice};
 
@@ -46,10 +47,14 @@ extern "C" {
 
 pub fn scan_devices() -> Result<Vec<BtDevice>, BtError> {
     let device_id = unsafe { hci_get_route(0 as *mut BtAddr) };
-    if device_id < 0 { return Err(BtError::Desc("hci_get_route(): no local bluetooth adapter found".to_string())); }
+    if device_id < 0 {
+        return Err(make_error("hci_get_route(): No local bluetooth adapter found"));
+    }
 
     let local_socket = unsafe { hci_open_dev(device_id) };
-    if local_socket < 0 { return Err(BtError::Desc("hci_open_dev(): opening local bluetooth adapter failed".to_string())); }
+    if local_socket < 0 {
+        return Err(make_error("hci_open_dev(): Opening local bluetooth adapter failed"));
+    }
 
     let mut inquiry_infos = ::std::vec::from_elem(InquiryInfo::default(), 256);
 
@@ -58,7 +63,7 @@ pub fn scan_devices() -> Result<Vec<BtDevice>, BtError> {
     let number_responses = unsafe { hci_inquiry(device_id, timeout, inquiry_infos.len() as c_int,
                                                 ptr::null(), &mut ::std::mem::transmute(&mut inquiry_infos[0]), flags) };
     if number_responses < 0 {
-        return Err(BtError::Desc("hci_inquiry(): scanning remote bluetooth devices failed".to_string()));
+        return Err(make_error("hci_inquiry(): Scanning remote bluetooth devices failed"));
     }
 
     inquiry_infos.truncate(number_responses as usize);
@@ -78,7 +83,9 @@ pub fn scan_devices() -> Result<Vec<BtDevice>, BtError> {
         })
     }
 
-    unsafe { close(local_socket) };
+    if unsafe { close(local_socket) } < 0 {
+        return Err(make_error("close()"));
+    }
 
     Ok(devices)
 }

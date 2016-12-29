@@ -93,7 +93,20 @@ pub enum BtError {
 
 impl std::fmt::Display for BtError {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(f, "{:?}", self)
+        write!(f, "{:}", std::error::Error::description(self))
+    }
+}
+
+impl std::error::Error for BtError {
+    fn description(&self) -> &str {
+        match self {
+            &BtError::Unknown =>
+                "Unknown Bluetooth Error",
+            &BtError::Errno(_, ref message) =>
+                message.as_str(),
+            &BtError::Desc(ref message) =>
+                message.as_str()
+        }
     }
 }
 
