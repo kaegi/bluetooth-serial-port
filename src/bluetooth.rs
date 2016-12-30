@@ -9,7 +9,7 @@ use platform;
 
 /// The bluetooth socket.
 ///
-/// Can be used in a `mio::EventLoop`.
+/// Can be used with `mio::Poll`.
 #[derive(Debug)]
 pub struct BtSocket(platform::BtSocket);
 
@@ -24,7 +24,51 @@ impl BtSocket {
     ///
     /// This function can block for some seconds.
     pub fn connect(&mut self, addr: BtAddr) -> Result<(), BtError> {
-        self.0.connect(addr)
+        // Create temporary `mio` event loop
+        let evtloop = mio::Poll::new().unwrap();
+        let token   = mio::Token(0);
+	    let mut events = mio::Events::with_capacity(2);
+
+        // Request a socket connection
+        let mut connect = self.0.connect(addr);
+
+        loop {
+            match try!(connect.advance()) {
+                BtAsync::WaitFor(evented, interest) => {
+                    let mut event_received = false;
+                    while !event_received {
+                        // Register this, single, event source
+                        evtloop.register(evented, token, interest, mio::PollOpt::oneshot()).unwrap();
+
+                        // Wait for it to transition to the requested state
+                        evtloop.poll(&mut events, None).unwrap();
+
+                        
+                        for event in events.iter() {
+                            if event.token() == token {
+                                event_received = true;
+                                evtloop.deregister(evented).unwrap();
+                            }
+                        }
+                    }
+                },
+
+                BtAsync::Done => {
+                    return Ok(());
+                }
+            }
+        }
+    }
+    
+    /// Connect to the RFCOMM service on remote device with address `addr`. Channel will be
+    /// determined through SDP protocol.
+    ///
+    /// This function will return immediately and can therefor not indicate most kinds of failures.
+    /// Once the connection actually has been established or an error has been determined the socket
+    /// will become writable however. It is highly recommended to combine this call with the usage
+    /// of `mio` (or some higher level event loop) to get proper non-blocking behaviour.
+    pub fn connect_async(&mut self, addr: BtAddr) -> BtSocketConnect {
+    	BtSocketConnect(self.0.connect(addr))
     }
 }
 
@@ -63,6 +107,36 @@ impl Write for BtSocket {
         self.0.flush()
     }
 }
+
+
+/// What needs to happen to advance to the next state an asynchronous process
+#[allow(missing_debug_implementations)] // `&mio::Evented` doesn't do `Debug`
+pub enum BtAsync<'a> {
+    /// Caller needs to wait for the given `Evented` object to reach the given `Ready` state
+    WaitFor(&'a mio::Evented, mio::Ready),
+
+    /// Asynchronous transaction has completed
+    Done
+}
+
+
+/// Manages the bluetooth connection process when used from an asynchronous client.
+#[derive(Debug)]
+pub struct BtSocketConnect<'a>(platform::BtSocketConnect<'a>);
+
+impl<'a> BtSocketConnect<'a> {
+    /// Advance the connection process to the next state
+    ///
+    /// Usage: When receiving a new `BtSocketConnect` instance call this function to get the
+    /// connection process started, then wait for the condition requested in `BtAsync` to apply
+    /// (by polling for it in a `mio.Poll` instance in general). Once the condition is met, invoke
+    /// this function again to advance to the next connect step. Repeat this process until you reach
+    /// `BtAsync::Done`, then discard this object and enjoy your established connection.
+    pub fn advance(&mut self) -> Result<BtAsync, BtError> {
+        self.0.advance()
+    }
+}
+
 
 /// Finds a vector of Bluetooth devices in range.
 ///
