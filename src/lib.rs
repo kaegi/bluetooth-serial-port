@@ -4,7 +4,8 @@
         trivial_casts, trivial_numeric_casts,
         unstable_features,
         unused_import_braces, unused_qualifications)]
-#[macro_use] extern crate enum_primitive;
+#[macro_use]
+extern crate enum_primitive;
 
 extern crate mio;
 extern crate nix;
@@ -13,7 +14,7 @@ extern crate libc;
 mod bluetooth;
 pub use bluetooth::*;
 
-///////////////////////////////////////
+// ////////////////////////////////////
 // Linux implementation of functions
 #[cfg(target_os = "linux")]
 mod linux;

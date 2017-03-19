@@ -25,7 +25,9 @@ struct sdp_session_t {
     priv_: *mut c_void,
 }
 impl ::std::default::Default for sdp_session_t {
-    fn default() -> Self { unsafe { ::std::mem::zeroed() } }
+    fn default() -> Self {
+        unsafe { ::std::mem::zeroed() }
+    }
 }
 
 #[repr(C)]
@@ -43,7 +45,9 @@ struct uuid_t {
     pub value: uuid_union_t,
 }
 impl ::std::default::Default for uuid_t {
-    fn default() -> Self { unsafe { ::std::mem::zeroed() } }
+    fn default() -> Self {
+        unsafe { ::std::mem::zeroed() }
+    }
 }
 
 #[repr(C)]
@@ -54,7 +58,9 @@ struct sdp_list_t {
     data: *mut c_void,
 }
 impl ::std::default::Default for sdp_list_t {
-    fn default() -> Self { unsafe { ::std::mem::zeroed() } }
+    fn default() -> Self {
+        unsafe { ::std::mem::zeroed() }
+    }
 }
 
 #[derive(Copy, Clone)]
@@ -78,7 +84,9 @@ struct sdp_record_t {
     _bindgen_padding_0_: [u8; 4usize],
 }
 impl ::std::default::Default for sdp_record_t {
-    fn default() -> Self { unsafe { ::std::mem::zeroed() } }
+    fn default() -> Self {
+        unsafe { ::std::mem::zeroed() }
+    }
 }
 
 
@@ -111,7 +119,9 @@ struct sdp_data_t {
     _bindgen_padding_0_: [u8; 4usize],
 }
 impl ::std::default::Default for sdp_data_t {
-    fn default() -> Self { unsafe { ::std::mem::zeroed() } }
+    fn default() -> Self {
+        unsafe { ::std::mem::zeroed() }
+    }
 }
 
 enum_from_primitive!{
@@ -156,7 +166,7 @@ enum SdpConnectFlags {
     RetryIfBusy = 0x01,
     WaitOnClose = 0x02,
     NonBlocking = 0x04,
-    LargeMtu    = 0x08,
+    LargeMtu = 0x08,
 }
 
 enum SdpProfile {
@@ -176,12 +186,16 @@ extern "C" {
     fn sdp_list_append(list: *mut sdp_list_t, d: *mut c_void) -> *mut sdp_list_t;
 
     fn sdp_service_search_attr_async(session: *mut sdp_session_t,
-        search: *const sdp_list_t,
-        reqtype: SdpAttrReqType,
-        attrid_list: *const sdp_list_t) -> c_int;
+                                     search: *const sdp_list_t,
+                                     reqtype: SdpAttrReqType,
+                                     attrid_list: *const sdp_list_t)
+                                     -> c_int;
     fn sdp_process(session: *mut sdp_session_t) -> c_int;
     fn sdp_get_error(session: *mut sdp_session_t) -> c_int;
-    fn sdp_set_notify(session: *mut sdp_session_t, func: Option<unsafe extern "C" fn(u8, u16, *const u8, usize, *mut c_void)>, udata: *mut c_void) -> c_int;
+    fn sdp_set_notify(session: *mut sdp_session_t,
+                      func: Option<unsafe extern "C" fn(u8, u16, *const u8, usize, *mut c_void)>,
+                      udata: *mut c_void)
+                      -> c_int;
 
     fn sdp_extract_seqtype(buf: *const u8, bufsize: c_int, dtdp: *mut u8, size: *mut c_int) -> c_int;
     fn sdp_extract_pdu(pdata: *const u8, bufsize: c_int, scanned: *mut c_int) -> *mut sdp_record_t;
@@ -200,42 +214,43 @@ enum QueryRFCOMMChannelState {
     New,
     Connecting,
     WaitForData,
-    Done
+    Done,
 }
 
 #[derive(Debug)]
 pub enum QueryRFCOMMChannelStatus {
     WaitReadable(unix::io::RawFd),
     WaitWritable(unix::io::RawFd),
-    Done(u8)
+    Done(u8),
 }
 
 #[derive(Debug)]
 pub struct QueryRFCOMMChannel {
-    addr:    BtAddr,
+    addr: BtAddr,
     session: *mut sdp_session_t,
-    state:   QueryRFCOMMChannelState,
-    
-    response: Option<Result<u8, BtError>>
+    state: QueryRFCOMMChannelState,
+
+    response: Option<Result<u8, BtError>>,
 }
 impl QueryRFCOMMChannel {
     pub fn new(addr: BtAddr) -> Self {
         QueryRFCOMMChannel {
-            addr:    addr,
+            addr: addr,
             session: ptr::null_mut(),
-            state:   QueryRFCOMMChannelState::New,
-            
-            response: None
+            state: QueryRFCOMMChannelState::New,
+
+            response: None,
         }
     }
-    
+
     unsafe extern "C" fn notify_cb(_: u8, status: u16, rsp: *const u8, size: usize, this_ptr: *mut c_void) {
         fn make_status_error(message: &str) -> BtError {
-            BtError::Desc(format!("sdp_service_search_attr_async(): Protocol error: {}", message))
+            BtError::Desc(format!("sdp_service_search_attr_async(): Protocol error: {}",
+                                  message))
         }
-        
+
         let this = &mut *(this_ptr as *mut Self);
-        
+
         this.response = Some(match status {
             0 => Self::parse_response(slice::from_raw_parts(rsp, size)),
             
@@ -256,23 +271,26 @@ impl QueryRFCOMMChannel {
                 ))
         });
     }
-    
+
     fn parse_response(response: &[u8]) -> Result<u8, BtError> {
         let mut data_type: u8 = 0;
         let mut seqlen: c_int = 0;
 
         // Response is a sequence of sequence(s) for one or
-		// more data element sequence(s) representing services
-		// for which attributes are returned
+        // more data element sequence(s) representing services
+        // for which attributes are returned
         let mut scanned = unsafe {
-            sdp_extract_seqtype(response.as_ptr(), response.len() as i32, &mut data_type, &mut seqlen)
+            sdp_extract_seqtype(response.as_ptr(),
+                                response.len() as i32,
+                                &mut data_type,
+                                &mut seqlen)
         };
 
         let mut channel: Option<u8> = None;
         if scanned > 0 && seqlen > 0 {
-            let mut pdata     = unsafe { response.as_ptr().offset(scanned as isize) };
+            let mut pdata = unsafe { response.as_ptr().offset(scanned as isize) };
             let mut pdata_len = (response.len() as i32) - scanned;
-            
+
             while scanned < (response.len() as i32) && pdata_len > 0 {
                 let mut record_size: c_int = 0;
                 let record = unsafe { sdp_extract_pdu(pdata, pdata_len, &mut record_size) };
@@ -284,7 +302,7 @@ impl QueryRFCOMMChannel {
                 }
 
                 scanned += record_size;
-                pdata     = unsafe { pdata.offset(record_size as isize) };
+                pdata = unsafe { pdata.offset(record_size as isize) };
                 pdata_len = pdata_len - record_size;
 
                 // get a list of the protocol sequences
@@ -302,27 +320,26 @@ impl QueryRFCOMMChannel {
                             let mut d: *mut sdp_data_t = unsafe { mem::transmute((*pds).data) };
                             let mut proto: Option<c_int> = None;
                             while d != ptr::null_mut() {
-                                match SdpPdu::from_u8(unsafe{*d}.dtd).unwrap_or_else(|| /* something that does not do anything = */ SdpPdu::DataNil) {
-                                    SdpPdu::Uuid16 |
-                                    SdpPdu::Uuid32 |
-                                    SdpPdu::Uuid128 => {
-                                        proto = Some(unsafe{sdp_uuid_to_proto((*d).val.uuid())});
+                                match SdpPdu::from_u8(unsafe { *d }.dtd)
+                                    .unwrap_or_else(|| /* something that does not do anything = */ SdpPdu::DataNil) {
+                                    SdpPdu::Uuid16 | SdpPdu::Uuid32 | SdpPdu::Uuid128 => {
+                                        proto = Some(unsafe { sdp_uuid_to_proto((*d).val.uuid()) });
                                     }
                                     SdpPdu::Uint8 => {
                                         if proto == Some(SdpProtoUuid::Rfcomm as c_int) {
-                                            channel = Some(unsafe{*(*d).val.uint8()});
+                                            channel = Some(unsafe { *(*d).val.uint8() });
                                         }
                                     }
-                                    _ => { }
+                                    _ => {}
                                 }
-                                d = unsafe{*d}.next;
+                                d = unsafe { *d }.next;
                             }
 
-                            pds = unsafe{*pds}.next;
+                            pds = unsafe { *pds }.next;
                         }
 
-                        unsafe { sdp_list_free( mem::transmute((*p).data) , ptr::null()) };
-                        p = unsafe{*p}.next;
+                        unsafe { sdp_list_free(mem::transmute((*p).data), ptr::null()) };
+                        p = unsafe { *p }.next;
                     }
 
                     unsafe { sdp_list_free(proto_list, ptr::null()) };
@@ -333,10 +350,8 @@ impl QueryRFCOMMChannel {
         }
 
         match channel {
-            Some(idx) =>
-                Ok(idx),
-            None =>
-                Err(BtError::Desc("No RFCOMM service on remote device".to_string()))
+            Some(idx) => Ok(idx),
+            None => Err(BtError::Desc("No RFCOMM service on remote device".to_string())),
         }
     }
 
@@ -360,7 +375,7 @@ impl QueryRFCOMMChannel {
 
                 self.state = QueryRFCOMMChannelState::Connecting;
                 Ok(QueryRFCOMMChannelStatus::WaitWritable(get_fd!()))
-            },
+            }
 
             &QueryRFCOMMChannelState::Connecting => {
                 // specify the UUID of the application we're searching for
@@ -378,7 +393,10 @@ impl QueryRFCOMMChannel {
 
                 // get a list of service records that have the serial port UUID
                 let result = unsafe {
-                    let status = sdp_service_search_attr_async(self.session, search_list, SdpAttrReqType::Range, attrid_list);
+                    let status = sdp_service_search_attr_async(self.session,
+                                                               search_list,
+                                                               SdpAttrReqType::Range,
+                                                               attrid_list);
                     if status < 0 {
                         Err(create_error_from_last("sdp_service_search_attr_async(): Sending service record search request failed"))
                     } else {
@@ -395,14 +413,14 @@ impl QueryRFCOMMChannel {
 
                 self.state = QueryRFCOMMChannelState::WaitForData;
                 Ok(QueryRFCOMMChannelStatus::WaitReadable(get_fd!()))
-            },
+            }
 
             &QueryRFCOMMChannelState::WaitForData => {
                 let status = unsafe { sdp_process(self.session) };
                 if status < 0 {
                     // Transaction completed – parsing function should have already been called
                     assert!(self.response.is_some());
-                    
+
                     // Unregister callback function
                     unsafe { sdp_set_notify(self.session, None, ptr::null_mut()) };
 
@@ -413,16 +431,14 @@ impl QueryRFCOMMChannel {
 
                     self.state = QueryRFCOMMChannelState::Done;
                     match self.response.take().unwrap() {
-                        Ok(channel) =>
-                            Ok(QueryRFCOMMChannelStatus::Done(channel)),
-                        Err(error)  =>
-                            Err(error)
+                        Ok(channel) => Ok(QueryRFCOMMChannelStatus::Done(channel)),
+                        Err(error) => Err(error),
                     }
                 } else {
                     // Transaction ongoing
                     Ok(QueryRFCOMMChannelStatus::WaitReadable(get_fd!()))
                 }
-            },
+            }
 
             &QueryRFCOMMChannelState::Done => {
                 panic!("Trying advance `QueryRFCOMMChannel` from `Done` state");

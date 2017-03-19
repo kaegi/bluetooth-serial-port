@@ -1,4 +1,4 @@
-use bluetooth::{BtAddr, BtAsync, BtError, BtDevice, BtProtocol};
+use bluetooth::{BtAddr, BtAsync, BtDevice, BtError, BtProtocol};
 use mio;
 use std;
 use std::io::{Read, Write};
@@ -34,25 +34,31 @@ impl mio::Evented for BtSocket {
 }
 
 impl Read for BtSocket {
-    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> { unimplemented!() }
+    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+        unimplemented!()
+    }
 }
 
 impl Write for BtSocket {
-    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> { unimplemented!() }
+    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+        unimplemented!()
+    }
 
-    fn flush(&mut self) -> std::io::Result<()> { unimplemented!() }
+    fn flush(&mut self) -> std::io::Result<()> {
+        unimplemented!()
+    }
 }
 
 #[derive(Debug)]
 pub struct BtSocketConnect<'a> {
-    addr:   BtAddr,
+    addr: BtAddr,
     socket: &'a mut BtSocket,
 }
 impl<'a> BtSocketConnect<'a> {
     pub fn new(socket: &'a mut BtSocket, addr: BtAddr) -> Self {
         BtSocketConnect {
-            addr:   addr.clone(),
-            socket: socket
+            addr: addr.clone(),
+            socket: socket,
         }
     }
 

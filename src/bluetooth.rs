@@ -26,8 +26,8 @@ impl BtSocket {
     pub fn connect(&mut self, addr: BtAddr) -> Result<(), BtError> {
         // Create temporary `mio` event loop
         let evtloop = mio::Poll::new().unwrap();
-        let token   = mio::Token(0);
-	    let mut events = mio::Events::with_capacity(2);
+        let token = mio::Token(0);
+        let mut events = mio::Events::with_capacity(2);
 
         // Request a socket connection
         let mut connect = self.0.connect(addr);
@@ -43,7 +43,7 @@ impl BtSocket {
                         // Wait for it to transition to the requested state
                         evtloop.poll(&mut events, None).unwrap();
 
-                        
+
                         for event in events.iter() {
                             if event.token() == token {
                                 event_received = true;
@@ -51,7 +51,7 @@ impl BtSocket {
                             }
                         }
                     }
-                },
+                }
 
                 BtAsync::Done => {
                     return Ok(());
@@ -59,7 +59,7 @@ impl BtSocket {
             }
         }
     }
-    
+
     /// Connect to the RFCOMM service on remote device with address `addr`. Channel will be
     /// determined through SDP protocol.
     ///
@@ -68,7 +68,7 @@ impl BtSocket {
     /// will become writable however. It is highly recommended to combine this call with the usage
     /// of `mio` (or some higher level event loop) to get proper non-blocking behaviour.
     pub fn connect_async(&mut self, addr: BtAddr) -> BtSocketConnect {
-    	BtSocketConnect(self.0.connect(addr))
+        BtSocketConnect(self.0.connect(addr))
     }
 }
 
@@ -116,7 +116,7 @@ pub enum BtAsync<'a> {
     WaitFor(&'a mio::Evented, mio::Ready),
 
     /// Asynchronous transaction has completed
-    Done
+    Done,
 }
 
 
@@ -145,13 +145,6 @@ pub fn scan_devices() -> Result<Vec<BtDevice>, BtError> {
     platform::scan_devices()
 }
 
-///////////////////////////////////////
-// TODO: Windows implementation of functions
-// #[cfg(target_os = "windows")]
-// mod windows;
-// #[cfg(target_os = "windows")]
-// pub use windows::platform;
-
 /// Represents an error which occurred in this library.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum BtError {
@@ -174,12 +167,9 @@ impl std::fmt::Display for BtError {
 impl std::error::Error for BtError {
     fn description(&self) -> &str {
         match self {
-            &BtError::Unknown =>
-                "Unknown Bluetooth Error",
-            &BtError::Errno(_, ref message) =>
-                message.as_str(),
-            &BtError::Desc(ref message) =>
-                message.as_str()
+            &BtError::Unknown => "Unknown Bluetooth Error",
+            &BtError::Errno(_, ref message) => message.as_str(),
+            &BtError::Desc(ref message) => message.as_str(),
         }
     }
 }
@@ -192,14 +182,21 @@ pub struct BtAddr(pub [u8; 6]);
 
 impl std::fmt::Debug for BtAddr {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(f, "{:02X}:{:02X}:{:02X}:{:02X}:{:02X}:{:02X}", self.0[0], self.0[1], self.0[2], self.0[3], self.0[4], self.0[5])
+        write!(f,
+               "{:02X}:{:02X}:{:02X}:{:02X}:{:02X}:{:02X}",
+               self.0[0],
+               self.0[1],
+               self.0[2],
+               self.0[3],
+               self.0[4],
+               self.0[5])
     }
 }
 
 impl BtAddr {
     /// Returns the MAC address `00:00:00:00:00:00`
-    pub fn any () -> BtAddr {
-        BtAddr ([0, 0, 0, 0, 0, 0])
+    pub fn any() -> BtAddr {
+        BtAddr([0, 0, 0, 0, 0, 0])
     }
 
     /// Linux lower-layers actually hold the address in native byte-order
@@ -232,19 +229,29 @@ impl BtAddr {
         let mut addr = BtAddr::any();
         let mut i = 0;
         for split_str in splits_iter {
-            if i == 6 || split_str.len() != 2 { return Err(()); } // only 6 values (0 <= i <= 5) are allowed
+            if i == 6 || split_str.len() != 2 {
+                return Err(());
+            } // only 6 values (0 <= i <= 5) are allowed
             let high = try!((split_str.as_bytes()[0] as char).to_digit(16).ok_or(()));
             let low = try!((split_str.as_bytes()[1] as char).to_digit(16).ok_or(()));
             addr.0[i] = (high * 16 + low) as u8;
             i += 1;
         }
-        if i != 6 { return Err(()) }
+        if i != 6 {
+            return Err(());
+        }
         Ok(addr)
     }
 
     /// Converts `BtAddr` to a string of the format `XX:XX:XX:XX:XX:XX`.
     pub fn to_string(&self) -> String {
-        format!("{:02X}:{:02X}:{:02X}:{:02X}:{:02X}:{:02X}", self.0[0], self.0[1], self.0[2], self.0[3], self.0[4], self.0[5])
+        format!("{:02X}:{:02X}:{:02X}:{:02X}:{:02X}:{:02X}",
+                self.0[0],
+                self.0[1],
+                self.0[2],
+                self.0[3],
+                self.0[4],
+                self.0[5])
     }
 }
 
@@ -264,23 +271,25 @@ pub struct BtDevice {
 /// Will probably be always `RFCOMM`.
 #[derive(Clone, Copy, Debug)]
 pub enum BtProtocol {
-    //L2CAP = BTPROTO_L2CAP,
-    //HCI = BTPROTO_HCI,
-    //SCO = BTPROTO_SCO,
+    // L2CAP = BTPROTO_L2CAP,
+    // HCI = BTPROTO_HCI,
+    // SCO = BTPROTO_SCO,
+    // BNEP = BTPROTO_BNEP,
+    // CMTP = BTPROTO_CMTP,
+    // HIDP = BTPROTO_HIDP,
+    // AVDTP = BTPROTO_AVDTP
     /// Serial RFCOMM connection to a bluetooth device.
-    RFCOMM,// = BTPROTO_RFCOMM,
-    //BNEP = BTPROTO_BNEP,
-    //CMTP = BTPROTO_CMTP,
-    //HIDP = BTPROTO_HIDP,
-    //AVDTP = BTPROTO_AVDTP
+    RFCOMM, // = BTPROTO_RFCOMM */
 }
 
 impl BtDevice {
     /// Create a new `BtDevice` manually from a name and addr.
     pub fn new(name: String, addr: BtAddr) -> BtDevice {
-        BtDevice { name: name, addr: addr }
+        BtDevice {
+            name: name,
+            addr: addr,
+        }
     }
-
 }
 
 
@@ -293,14 +302,14 @@ mod tests {
     fn btaddr_from_string() {
         match BtAddr::from_str("00:00:00:00:00:00") {
             Ok(addr) => assert_eq!(addr, BtAddr([0u8; 6])),
-            Err(_) => panic!("")
+            Err(_) => panic!(""),
         }
 
         let fail_strings = ["addr : String", "00:00:00:00:00", "00:00:00:00:00:00:00", "-00:00:00:00:00:00", "0G:00:00:00:00:00"];
         for &s in &fail_strings {
             match BtAddr::from_str(s) {
                 Ok(_) => panic!("Somehow managed to parse \"{}\" as an address?!", s),
-                Err(_) => ()
+                Err(_) => (),
             }
         }
     }
