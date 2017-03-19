@@ -1,9 +1,9 @@
 [package]
 name = "bluetooth-serial-port"
-version = "0.4.1"
-authors = ["Christopher James Halse Rogers <raof@ubuntu.com>", "Chang Spivey <chang.spivey@gmail.com>"]
+version = "0.5.0"
+authors = ["Christopher James Halse Rogers <raof@ubuntu.com>", "kaegi <kaegi.dev@gmail.com>"]
 description = "Interact with Bluetooth devices via RFCOMM channels"
-repository = "https://github.com/ChangSpivey/bluetooth-serial-port"
+repository = "https://github.com/kaegi/bluetooth-serial-port"
 readme = "README.md"
 keywords = ["bluetooth", "RFCOMM", "SDP", "SPP"]
 license = "GPL-3.0"

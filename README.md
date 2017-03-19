@@ -9,7 +9,7 @@ Cargo.toml:
 
 ```toml
 [dependencies]
-bluetooth-serial-port = "0.4"
+bluetooth-serial-port = "0.5.0"
 ```
 
 Important functions:
@@ -18,6 +18,7 @@ Important functions:
 bluetooth_serial_port::scan_devices()
 BtSocket::new()
 BtSocket::connect()
+BtSocket::connect_async()
 BtSocket::read()
 BtSocket::write()
 
