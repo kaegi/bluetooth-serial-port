@@ -2,8 +2,8 @@ extern crate libc;
 extern crate nix;
 extern crate mio;
 
-use bluetooth::{BtError, BtAddr, BtProtocol};
-use platform::get_rfcomm_channel;
+use bluetooth::{BtError, BtAddr, BtProtocol, BtAsync};
+use super::sdp::{QueryRFCOMMChannel, QueryRFCOMMChannelStatus};
 use std;
 use std::io::{Read, Write};
 use std::mem;
@@ -13,48 +13,16 @@ use mio::{Poll, Ready};
 use std::os::unix::net::UnixStream;
 use mio::unix::EventedFd;
 
-#[derive(Debug)]
-pub struct BtSocket {
-    stream: UnixStream,
+
+
+pub fn create_error_from_errno(message: &str, errno: i32) -> BtError {
+    let nix_error = nix::Error::from_errno(nix::Errno::from_i32(errno));
+    BtError::Errno(errno as u32, format!("{:}: {:}", message, nix_error.description()))
+}
+pub fn create_error_from_last(message: &str) -> BtError {
+    create_error_from_errno(message, nix::errno::errno())
 }
 
-
-pub fn make_error(message: &'static str) -> BtError {
-    let nix_error = nix::Error::last();
-    BtError::Errno(nix_error.errno() as u32, format!("{:}: {:}", message, nix_error.description()))
-}
-
-
-impl BtSocket {
-    pub fn new(proto: BtProtocol) -> Result<BtSocket, BtError> {
-        match proto {
-            BtProtocol::RFCOMM => {
-                let fd = unsafe { libc::socket(AF_BLUETOOTH, libc::SOCK_STREAM, BtProtocolBlueZ::RFCOMM as i32) };
-                if fd < 0 {
-                    Err(make_error("Failed to create Bluetooth socket"))
-                } else {
-                    Ok(BtSocket::from(fd))
-                }
-            }
-        }
-    }
-
-    pub fn connect(&mut self, addr: BtAddr) -> Result<(), BtError> {
-        let addr = addr.convert_host_byteorder();
-        
-        let full_address : sockaddr_rc = sockaddr_rc {
-            rc_family : AF_BLUETOOTH as u16,
-            rc_bdaddr : addr,
-            rc_channel : try!(get_rfcomm_channel(addr))
-        };
-
-        if unsafe { libc::connect(self.stream.as_raw_fd(), mem::transmute(&full_address), mem::size_of::<sockaddr_rc>() as u32) } < 0 {
-            Err(make_error("Failed to connect() to target device"))
-        } else {
-            Ok(())
-        }
-    }
-}
 
 
 const AF_BLUETOOTH : i32 = 31;
@@ -88,6 +56,34 @@ struct sockaddr_rc {
     rc_family : libc::sa_family_t,
     rc_bdaddr : BtAddr,
     rc_channel : u8
+}
+
+
+
+#[derive(Debug)]
+pub struct BtSocket {
+    stream: UnixStream,
+}
+
+impl BtSocket {
+    pub fn new(proto: BtProtocol) -> Result<BtSocket, BtError> {
+        match proto {
+            BtProtocol::RFCOMM => {
+                let fd = unsafe { libc::socket(AF_BLUETOOTH, libc::SOCK_STREAM, BtProtocolBlueZ::RFCOMM as i32) };
+                if fd < 0 {
+                    Err(create_error_from_last("Failed to create Bluetooth socket"))
+                } else {
+                    Ok(BtSocket::from(fd))
+                }
+            }
+        }
+    }
+
+    pub fn connect<'a>(&'a mut self, addr: BtAddr) -> BtSocketConnect<'a> {
+        let addr = addr.convert_host_byteorder();
+
+        BtSocketConnect::new(self, addr)
+    }
 }
 
 impl From<nix::Error> for BtError {
@@ -129,5 +125,111 @@ impl Write for BtSocket {
 
     fn flush(&mut self) -> std::io::Result<()> {
         self.stream.flush()
+    }
+}
+
+
+#[derive(Debug)]
+enum BtSocketConnectState {
+    SDPSearch,
+    Connect,
+    Done
+}
+
+#[derive(Debug)]
+pub struct BtSocketConnect<'a> {
+    addr:   BtAddr,
+    pollfd: RawFd,
+    state:  BtSocketConnectState,
+    socket: &'a mut BtSocket,
+    query:  QueryRFCOMMChannel,
+}
+impl<'a> BtSocketConnect<'a> {
+    pub fn new(socket: &'a mut BtSocket, addr: BtAddr) -> Self {
+        BtSocketConnect {
+            addr:   addr.clone(),
+            pollfd: 0,
+            query:  QueryRFCOMMChannel::new(addr),
+            socket: socket,
+            state:  BtSocketConnectState::SDPSearch
+        }
+    }
+
+    pub fn advance(&mut self) -> Result<BtAsync, BtError> {
+        match &self.state {
+            &BtSocketConnectState::SDPSearch => {
+                match try!(self.query.advance()) {
+                    // Forward SDP's pleas for another round
+                    QueryRFCOMMChannelStatus::WaitReadable(fd) => {
+                        self.pollfd = fd;
+                        Ok(BtAsync::WaitFor(self, Ready::readable()))
+                    },
+
+                    QueryRFCOMMChannelStatus::WaitWritable(fd) => {
+                        self.pollfd = fd;
+                        Ok(BtAsync::WaitFor(self, Ready::writable()))
+                    },
+
+                    // Received channel number, start actual connection
+                    QueryRFCOMMChannelStatus::Done(channel) => {
+                        let full_address: sockaddr_rc = sockaddr_rc {
+                            rc_family:  AF_BLUETOOTH as u16,
+                            rc_bdaddr:  self.addr,
+                            rc_channel: channel
+                        };
+
+                        self.pollfd = self.socket.stream.as_raw_fd();
+                        if unsafe { libc::connect(self.pollfd, mem::transmute(&full_address), mem::size_of::<sockaddr_rc>() as u32) } < 0 {
+                            Err(create_error_from_last("Failed to connect() to target device"))
+                        } else {
+                            self.state = BtSocketConnectState::Connect;
+                            Ok(BtAsync::WaitFor(self, Ready::writable()))
+                        }
+                    }
+                }
+            },
+
+            &BtSocketConnectState::Connect => {
+                // First check if socket is actually connected using `getpeername()`
+                let mut full_address: sockaddr_rc = sockaddr_rc {
+                    rc_family:  AF_BLUETOOTH as u16,
+                    rc_bdaddr:  BtAddr::any(),
+                    rc_channel: 0
+                };
+                let mut socklen: libc::socklen_t = mem::size_of::<sockaddr_rc>() as libc::socklen_t;
+                if unsafe { libc::getpeername(self.pollfd, mem::transmute(&mut full_address), &mut socklen) } < 0 {
+                    if nix::Errno::last() == nix::Errno::ENOTCONN {
+                        // Connection has failed – obtain actual error code using `read()`
+                        let mut buf = [0u8; 1];
+                        nix::unistd::read(self.pollfd, &mut buf).unwrap_err();
+                        Err(create_error_from_last("Failed to connect() to target device"))
+                    } else {
+                        // Some unexpected error
+                        Err(create_error_from_last("getpeername() failed"))
+                    }
+                } else {
+                    self.state = BtSocketConnectState::Done;
+                    Ok(BtAsync::Done)
+                }
+            },
+
+            &BtSocketConnectState::Done => {
+                panic!("Trying advance `BtSocketConnect` from `Done` state");
+            }
+        }
+    }
+}
+
+impl<'a> mio::Evented for BtSocketConnect<'a> {
+    fn register(&self, poll: &Poll, token: mio::Token, interest: Ready, opts: mio::PollOpt) -> std::io::Result<()> {
+        EventedFd(&self.pollfd).register(poll, token, interest, opts)
+    }
+
+    fn reregister(&self, poll: &Poll, token: mio::Token, interest: Ready, opts: mio::PollOpt) -> std::io::Result<()> {
+        EventedFd(&self.pollfd).reregister(poll, token, interest, opts)
+    }
+
+    fn deregister(&self, poll: &Poll) -> std::io::Result<()> {
+        EventedFd(&self.pollfd).deregister(poll)
     }
 }

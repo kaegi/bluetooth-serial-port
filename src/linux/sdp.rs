@@ -1,20 +1,23 @@
 extern crate enum_primitive;
 
 use super::ffi::*;
-use super::socket::make_error;
+use super::socket::create_error_from_errno;
+use super::socket::create_error_from_last;
 
 use bluetooth::{BtAddr, BtError};
 
-use std::ptr;
-use std::os::raw::*;
 use std::mem;
+use std::ptr;
+use std::slice;
+use std::os::raw::*;
+use std::os::unix;
 use enum_primitive::FromPrimitive;
 
 #[repr(C)]
 #[derive(Copy, Clone)]
 #[derive(Debug)]
 struct sdp_session_t {
-    sock: c_int,
+    sock: unix::io::RawFd,
     state: c_int,
     local: c_int,
     flags: c_int,
@@ -168,17 +171,22 @@ enum SdpProtoUuid {
 #[link(name="bluetooth")]
 extern "C" {
     fn sdp_connect(src: *const BtAddr, dst: *const BtAddr, flags: uint32_t) -> *mut sdp_session_t;
+
     fn sdp_uuid16_create(uuid: *mut uuid_t, data: uint16_t) -> *mut uuid_t;
     fn sdp_list_append(list: *mut sdp_list_t, d: *mut c_void) -> *mut sdp_list_t;
-    fn sdp_service_search_attr_req(session: *mut sdp_session_t,
+
+    fn sdp_service_search_attr_async(session: *mut sdp_session_t,
         search: *const sdp_list_t,
         reqtype: SdpAttrReqType,
-        attrid_list: *const sdp_list_t,
-        rsp_list: *mut *mut sdp_list_t) -> c_int;
+        attrid_list: *const sdp_list_t) -> c_int;
+    fn sdp_process(session: *mut sdp_session_t) -> c_int;
+    fn sdp_get_error(session: *mut sdp_session_t) -> c_int;
+    fn sdp_set_notify(session: *mut sdp_session_t, func: Option<unsafe extern "C" fn(u8, u16, *const u8, usize, *mut c_void)>, udata: *mut c_void) -> c_int;
 
-    fn sdp_get_access_protos(rec: *const sdp_record_t,
-    protos: *mut *mut sdp_list_t) -> c_int;
+    fn sdp_extract_seqtype(buf: *const u8, bufsize: c_int, dtdp: *mut u8, size: *mut c_int) -> c_int;
+    fn sdp_extract_pdu(pdata: *const u8, bufsize: c_int, scanned: *mut c_int) -> *mut sdp_record_t;
 
+    fn sdp_get_access_protos(rec: *const sdp_record_t, protos: *mut *mut sdp_list_t) -> c_int;
     fn sdp_uuid_to_proto(uuid: *mut uuid_t) -> c_int;
 
     fn sdp_list_free(list: *mut sdp_list_t, free_func: *const c_void);
@@ -186,86 +194,239 @@ extern "C" {
     fn sdp_record_free(rec: *mut sdp_record_t);
 }
 
-pub fn get_rfcomm_channel(addr: BtAddr) -> Result<u8, BtError> {
-    let mut channel: Option<u8> = None;
 
-    let session = unsafe { sdp_connect(&BtAddr::any(), &addr, SdpConnectFlags::RetryIfBusy as u32) };
-    if session == ptr::null_mut() {
-        return Err(make_error("sdp_connect(): Bluetooth device not accessible"));
+#[derive(Debug)]
+enum QueryRFCOMMChannelState {
+    New,
+    Connecting,
+    WaitForData,
+    Done
+}
+
+#[derive(Debug)]
+pub enum QueryRFCOMMChannelStatus {
+    WaitReadable(unix::io::RawFd),
+    WaitWritable(unix::io::RawFd),
+    Done(u8)
+}
+
+#[derive(Debug)]
+pub struct QueryRFCOMMChannel {
+    addr:    BtAddr,
+    session: *mut sdp_session_t,
+    state:   QueryRFCOMMChannelState,
+    
+    response: Option<Result<u8, BtError>>
+}
+impl QueryRFCOMMChannel {
+    pub fn new(addr: BtAddr) -> Self {
+        QueryRFCOMMChannel {
+            addr:    addr,
+            session: ptr::null_mut(),
+            state:   QueryRFCOMMChannelState::New,
+            
+            response: None
+        }
     }
-
-    // specify the UUID of the application we're searching for
-    let mut service_uuid = uuid_t::default();
-    unsafe { sdp_uuid16_create(&mut service_uuid, SdpProfile::SerialPort as u16) };
-    let search_list = unsafe { sdp_list_append(ptr::null_mut(), mem::transmute(&mut service_uuid)) };
-
-    // specify that we want a list of all the matching applications' attributes
-    let mut range = 0x0000FFFFu32;
-    let attrid_list = unsafe { sdp_list_append(ptr::null_mut(), mem::transmute(&mut range)) };
-
-
-    // get a list of service records that have the serial port UUID
-    let mut response_list: *mut sdp_list_t = ptr::null_mut();
-    if unsafe { sdp_service_search_attr_req( session, search_list, SdpAttrReqType::Range, attrid_list, &mut response_list) } < 0 {
-    	return Err(make_error("sdp_service_search_attr_req(): Service record search on Bluetooth device failed"));
+    
+    unsafe extern "C" fn notify_cb(_: u8, status: u16, rsp: *const u8, size: usize, this_ptr: *mut c_void) {
+        fn make_status_error(message: &str) -> BtError {
+            BtError::Desc(format!("sdp_service_search_attr_async(): Protocol error: {}", message))
+        }
+        
+        let this = &mut *(this_ptr as *mut Self);
+        
+        this.response = Some(match status {
+            0 => Self::parse_response(slice::from_raw_parts(rsp, size)),
+            
+            0x0001 => // SDP_INVALID_VERSION
+                Err(make_status_error("Invalid version")),
+            0x0002 => // SDP_INVALID_RECORD_HANDLE
+                Err(make_status_error("Invalid record handle")),
+            0x0003 => // SDP_INVALID_SYNTAX
+                Err(make_status_error("Invalid syntax")),
+            0x0004 => // SDP_INVALID_PDU_SIZE
+                Err(make_status_error("Invalid PDU size")),
+            0x0005 => // SDP_INVALID_CSTATE
+                Err(make_status_error("Invalid CState")),
+            _      =>
+                Err(create_error_from_errno(
+                        "sdp_service_search_attr_async(): Service record search failed",
+                        sdp_get_error(this.session)
+                ))
+        });
     }
+    
+    fn parse_response(response: &[u8]) -> Result<u8, BtError> {
+        let mut data_type: u8 = 0;
+        let mut seqlen: c_int = 0;
 
-    // go through each of the service records
-    let mut r = response_list;
-    while r != ptr::null_mut() {
-        let record: *mut sdp_record_t = unsafe { mem::transmute((*r).data) };
-        let mut proto_list: *mut sdp_list_t = ptr::null_mut();
+        // Response is a sequence of sequence(s) for one or
+		// more data element sequence(s) representing services
+		// for which attributes are returned
+        let mut scanned = unsafe {
+            sdp_extract_seqtype(response.as_ptr(), response.len() as i32, &mut data_type, &mut seqlen)
+        };
 
-        // get a list of the protocol sequences
-        if unsafe { sdp_get_access_protos(record, &mut proto_list) } == 0 {
-            let mut p = proto_list;
-
-            while p != ptr::null_mut() {
-                let mut pds: *mut sdp_list_t = unsafe { mem::transmute((*p).data) };
-
-                // go through each protocol list of the protocol sequence
-                while pds != ptr::null_mut() {
-
-                    // check the protocol attributes
-                    let mut d: *mut sdp_data_t = unsafe { mem::transmute((*pds).data) };
-                    let mut proto: Option<c_int> = None;
-                    while d != ptr::null_mut() {
-                        match SdpPdu::from_u8(unsafe{*d}.dtd).unwrap_or_else(|| /* something that does not do anything = */ SdpPdu::DataNil) {
-                            SdpPdu::Uuid16 |
-                            SdpPdu::Uuid32 |
-                            SdpPdu::Uuid128 => {
-                                proto = Some(unsafe{sdp_uuid_to_proto((*d).val.uuid())});
-                            }
-                            SdpPdu::Uint8 => {
-                                if proto == Some(SdpProtoUuid::Rfcomm as c_int) {
-                                    channel = Some(unsafe{*(*d).val.uint8()});
-                                }
-                            }
-                            _ => { }
-                        }
-                        d = unsafe{*d}.next;
-                    }
-
-                    pds = unsafe{*pds}.next;
+        let mut channel: Option<u8> = None;
+        if scanned > 0 && seqlen > 0 {
+            let mut pdata     = unsafe { response.as_ptr().offset(scanned as isize) };
+            let mut pdata_len = (response.len() as i32) - scanned;
+            
+            while scanned < (response.len() as i32) && pdata_len > 0 {
+                let mut record_size: c_int = 0;
+                let record = unsafe { sdp_extract_pdu(pdata, pdata_len, &mut record_size) };
+                if record.is_null() {
+                    return Err(BtError::Desc("sdp_extract_pdu() returned NULL during parsing".to_string()));
+                } else if record_size < 1 {
+                    unsafe { sdp_record_free(record) };
+                    break;
                 }
 
-                unsafe{ sdp_list_free( mem::transmute((*p).data) , ptr::null()) };
-                p = unsafe{*p}.next;
-            }
+                scanned += record_size;
+                pdata     = unsafe { pdata.offset(record_size as isize) };
+                pdata_len = pdata_len - record_size;
 
-            unsafe{ sdp_list_free(proto_list, ptr::null()) };
+                // get a list of the protocol sequences
+                let mut proto_list: *mut sdp_list_t = ptr::null_mut();
+                if unsafe { sdp_get_access_protos(record, &mut proto_list) } == 0 {
+                    let mut p = proto_list;
+
+                    while p != ptr::null_mut() {
+                        let mut pds: *mut sdp_list_t = unsafe { mem::transmute((*p).data) };
+
+                        // go through each protocol list of the protocol sequence
+                        while pds != ptr::null_mut() {
+
+                            // check the protocol attributes
+                            let mut d: *mut sdp_data_t = unsafe { mem::transmute((*pds).data) };
+                            let mut proto: Option<c_int> = None;
+                            while d != ptr::null_mut() {
+                                match SdpPdu::from_u8(unsafe{*d}.dtd).unwrap_or_else(|| /* something that does not do anything = */ SdpPdu::DataNil) {
+                                    SdpPdu::Uuid16 |
+                                    SdpPdu::Uuid32 |
+                                    SdpPdu::Uuid128 => {
+                                        proto = Some(unsafe{sdp_uuid_to_proto((*d).val.uuid())});
+                                    }
+                                    SdpPdu::Uint8 => {
+                                        if proto == Some(SdpProtoUuid::Rfcomm as c_int) {
+                                            channel = Some(unsafe{*(*d).val.uint8()});
+                                        }
+                                    }
+                                    _ => { }
+                                }
+                                d = unsafe{*d}.next;
+                            }
+
+                            pds = unsafe{*pds}.next;
+                        }
+
+                        unsafe { sdp_list_free( mem::transmute((*p).data) , ptr::null()) };
+                        p = unsafe{*p}.next;
+                    }
+
+                    unsafe { sdp_list_free(proto_list, ptr::null()) };
+                }
+
+                unsafe { sdp_record_free(record) };
+            }
         }
 
-        r = unsafe{*r}.next;
-        unsafe{ sdp_record_free(record); }
+        match channel {
+            Some(idx) =>
+                Ok(idx),
+            None =>
+                Err(BtError::Desc("No RFCOMM service on remote device".to_string()))
+        }
     }
 
-    if unsafe { sdp_close(session) } < 0 {
-        return Err(make_error("sdp_close()"));
-    }
+    pub fn advance(&mut self) -> Result<QueryRFCOMMChannelStatus, BtError> {
+        macro_rules! get_fd {
+            () => {
+                {
+                    assert!(!self.session.is_null());
+                    unsafe { (*self.session).sock }
+                }
+            }
+        };
 
-    match channel {
-        Some(x) => return Ok(x),
-        None => Err(BtError::Desc("No RFCOMM service on remote device".to_string()))
+        match &self.state {
+            &QueryRFCOMMChannelState::New => {
+                let flags = SdpConnectFlags::NonBlocking as u32;
+                self.session = unsafe { sdp_connect(&BtAddr::any(), &self.addr, flags) };
+                if self.session == ptr::null_mut() {
+                    return Err(create_error_from_last("sdp_connect(): Bluetooth device not accessible"));
+                }
+
+                self.state = QueryRFCOMMChannelState::Connecting;
+                Ok(QueryRFCOMMChannelStatus::WaitWritable(get_fd!()))
+            },
+
+            &QueryRFCOMMChannelState::Connecting => {
+                // specify the UUID of the application we're searching for
+                let mut service_uuid = uuid_t::default();
+                unsafe { sdp_uuid16_create(&mut service_uuid, SdpProfile::SerialPort as u16) };
+                let search_list = unsafe { sdp_list_append(ptr::null_mut(), mem::transmute(&mut service_uuid)) };
+
+                // specify that we want a list of all the matching applications' attributes
+                let mut range = 0x0000FFFFu32;
+                let attrid_list = unsafe { sdp_list_append(ptr::null_mut(), mem::transmute(&mut range)) };
+
+                // register for notification once all data has been parsed
+                let this_ptr: *mut Self = self;
+                unsafe { sdp_set_notify(self.session, Some(Self::notify_cb), this_ptr as *mut c_void) };
+
+                // get a list of service records that have the serial port UUID
+                let result = unsafe {
+                    let status = sdp_service_search_attr_async(self.session, search_list, SdpAttrReqType::Range, attrid_list);
+                    if status < 0 {
+                        Err(create_error_from_last("sdp_service_search_attr_async(): Sending service record search request failed"))
+                    } else {
+                        Ok(())
+                    }
+                };
+
+                // make sure data is freed before acting upon the result of the previous operation
+                unsafe { sdp_list_free(search_list, ptr::null()) };
+                unsafe { sdp_list_free(attrid_list, ptr::null()) };
+
+                // quit if sending service request failed
+                try!(result);
+
+                self.state = QueryRFCOMMChannelState::WaitForData;
+                Ok(QueryRFCOMMChannelStatus::WaitReadable(get_fd!()))
+            },
+
+            &QueryRFCOMMChannelState::WaitForData => {
+                let status = unsafe { sdp_process(self.session) };
+                if status < 0 {
+                    // Transaction completed – parsing function should have already been called
+                    assert!(self.response.is_some());
+                    
+                    // Unregister callback function
+                    unsafe { sdp_set_notify(self.session, None, ptr::null_mut()) };
+
+                    // Close session
+                    if unsafe { sdp_close(self.session) } < 0 {
+                        return Err(create_error_from_last("sdp_close()"));
+                    }
+
+                    self.state = QueryRFCOMMChannelState::Done;
+                    match self.response.take().unwrap() {
+                        Ok(channel) =>
+                            Ok(QueryRFCOMMChannelStatus::Done(channel)),
+                        Err(error)  =>
+                            Err(error)
+                    }
+                } else {
+                    // Transaction ongoing
+                    Ok(QueryRFCOMMChannelStatus::WaitReadable(get_fd!()))
+                }
+            },
+
+            &QueryRFCOMMChannelState::Done => {
+                panic!("Trying advance `QueryRFCOMMChannel` from `Done` state");
+            }
+        }
     }
 }
