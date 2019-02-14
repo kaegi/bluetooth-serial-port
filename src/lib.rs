@@ -1,17 +1,22 @@
 //! Interact with Bluetooth devices via RFCOMM channels.
-#![deny(missing_docs,
-        missing_debug_implementations, missing_copy_implementations,
-        trivial_casts, trivial_numeric_casts,
-        unstable_features,
-        unused_import_braces, unused_qualifications)]
+#![deny(
+    missing_docs,
+    missing_debug_implementations,
+    missing_copy_implementations,
+    trivial_casts,
+    trivial_numeric_casts,
+    unstable_features,
+    unused_import_braces,
+    unused_qualifications
+)]
 
 #[allow(unused_imports)] // depending on target, this might be unused
 #[macro_use]
 extern crate enum_primitive;
 
+extern crate libc;
 extern crate mio;
 extern crate nix;
-extern crate libc;
 
 mod bluetooth;
 pub use bluetooth::*;

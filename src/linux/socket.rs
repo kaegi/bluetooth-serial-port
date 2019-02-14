@@ -1,30 +1,28 @@
 extern crate libc;
-extern crate nix;
 extern crate mio;
+extern crate nix;
 
-use bluetooth::{BtAddr, BtAsync, BtError, BtProtocol};
 use super::sdp::{QueryRFCOMMChannel, QueryRFCOMMChannelStatus};
+use bluetooth::{BtAddr, BtAsync, BtError, BtProtocol};
+use mio::unix::EventedFd;
+use mio::{Poll, Ready};
 use std;
+use std::error::Error;
 use std::io::{Read, Write};
 use std::mem;
-use std::error::Error;
 use std::os::unix::io::{AsRawFd, FromRawFd, RawFd};
-use mio::{Poll, Ready};
 use std::os::unix::net::UnixStream;
-use mio::unix::EventedFd;
-
-
 
 pub fn create_error_from_errno(message: &str, errno: i32) -> BtError {
     let nix_error = nix::Error::from_errno(nix::Errno::from_i32(errno));
-    BtError::Errno(errno as u32,
-                   format!("{:}: {:}", message, nix_error.description()))
+    BtError::Errno(
+        errno as u32,
+        format!("{:}: {:}", message, nix_error.description()),
+    )
 }
 pub fn create_error_from_last(message: &str) -> BtError {
     create_error_from_errno(message, nix::errno::errno())
 }
-
-
 
 const AF_BLUETOOTH: i32 = 31;
 
@@ -49,8 +47,6 @@ enum BtProtocolBlueZ {
     AVDTP = BTPROTO_AVDTP,
 }
 
-
-
 #[repr(C)]
 #[derive(Copy, Debug, Clone)]
 struct sockaddr_rc {
@@ -58,8 +54,6 @@ struct sockaddr_rc {
     rc_bdaddr: BtAddr,
     rc_channel: u8,
 }
-
-
 
 #[derive(Debug)]
 pub struct BtSocket {
@@ -71,11 +65,17 @@ impl BtSocket {
         match proto {
             BtProtocol::RFCOMM => {
                 let fd = unsafe {
-                    libc::socket(AF_BLUETOOTH,
-                                 libc::SOCK_STREAM,
-                                 BtProtocolBlueZ::RFCOMM as i32)
+                    libc::socket(
+                        AF_BLUETOOTH,
+                        libc::SOCK_STREAM,
+                        BtProtocolBlueZ::RFCOMM as i32,
+                    )
                 };
-                if fd < 0 { Err(create_error_from_last("Failed to create Bluetooth socket")) } else { Ok(BtSocket::from(fd)) }
+                if fd < 0 {
+                    Err(create_error_from_last("Failed to create Bluetooth socket"))
+                } else {
+                    Ok(BtSocket::from(fd))
+                }
             }
         }
     }
@@ -95,16 +95,30 @@ impl From<nix::Error> for BtError {
 
 impl From<RawFd> for BtSocket {
     fn from(rawfd: RawFd) -> BtSocket {
-        BtSocket { stream: unsafe { UnixStream::from_raw_fd(rawfd) } }
+        BtSocket {
+            stream: unsafe { UnixStream::from_raw_fd(rawfd) },
+        }
     }
 }
 
 impl mio::Evented for BtSocket {
-    fn register(&self, poll: &Poll, token: mio::Token, interest: Ready, opts: mio::PollOpt) -> std::io::Result<()> {
+    fn register(
+        &self,
+        poll: &Poll,
+        token: mio::Token,
+        interest: Ready,
+        opts: mio::PollOpt,
+    ) -> std::io::Result<()> {
         EventedFd(&self.stream.as_raw_fd()).register(poll, token, interest, opts)
     }
 
-    fn reregister(&self, poll: &Poll, token: mio::Token, interest: Ready, opts: mio::PollOpt) -> std::io::Result<()> {
+    fn reregister(
+        &self,
+        poll: &Poll,
+        token: mio::Token,
+        interest: Ready,
+        opts: mio::PollOpt,
+    ) -> std::io::Result<()> {
         EventedFd(&self.stream.as_raw_fd()).reregister(poll, token, interest, opts)
     }
 
@@ -128,7 +142,6 @@ impl Write for BtSocket {
         self.stream.flush()
     }
 }
-
 
 #[derive(Debug)]
 enum BtSocketConnectState {
@@ -181,11 +194,16 @@ impl<'a> BtSocketConnect<'a> {
 
                         self.pollfd = self.socket.stream.as_raw_fd();
                         if unsafe {
-                            libc::connect(self.pollfd,
-                                          mem::transmute(&full_address),
-                                          mem::size_of::<sockaddr_rc>() as u32)
-                        } < 0 {
-                            Err(create_error_from_last("Failed to connect() to target device"))
+                            libc::connect(
+                                self.pollfd,
+                                mem::transmute(&full_address),
+                                mem::size_of::<sockaddr_rc>() as u32,
+                            )
+                        } < 0
+                        {
+                            Err(create_error_from_last(
+                                "Failed to connect() to target device",
+                            ))
                         } else {
                             self.state = BtSocketConnectState::Connect;
                             Ok(BtAsync::WaitFor(self, Ready::writable()))
@@ -202,12 +220,17 @@ impl<'a> BtSocketConnect<'a> {
                     rc_channel: 0,
                 };
                 let mut socklen: libc::socklen_t = mem::size_of::<sockaddr_rc>() as libc::socklen_t;
-                if unsafe { libc::getpeername(self.pollfd, mem::transmute(&mut full_address), &mut socklen) } < 0 {
+                if unsafe {
+                    libc::getpeername(self.pollfd, mem::transmute(&mut full_address), &mut socklen)
+                } < 0
+                {
                     if nix::Errno::last() == nix::Errno::ENOTCONN {
                         // Connection has failed – obtain actual error code using `read()`
                         let mut buf = [0u8; 1];
                         nix::unistd::read(self.pollfd, &mut buf).unwrap_err();
-                        Err(create_error_from_last("Failed to connect() to target device"))
+                        Err(create_error_from_last(
+                            "Failed to connect() to target device",
+                        ))
                     } else {
                         // Some unexpected error
                         Err(create_error_from_last("getpeername() failed"))
@@ -226,11 +249,23 @@ impl<'a> BtSocketConnect<'a> {
 }
 
 impl<'a> mio::Evented for BtSocketConnect<'a> {
-    fn register(&self, poll: &Poll, token: mio::Token, interest: Ready, opts: mio::PollOpt) -> std::io::Result<()> {
+    fn register(
+        &self,
+        poll: &Poll,
+        token: mio::Token,
+        interest: Ready,
+        opts: mio::PollOpt,
+    ) -> std::io::Result<()> {
         EventedFd(&self.pollfd).register(poll, token, interest, opts)
     }
 
-    fn reregister(&self, poll: &Poll, token: mio::Token, interest: Ready, opts: mio::PollOpt) -> std::io::Result<()> {
+    fn reregister(
+        &self,
+        poll: &Poll,
+        token: mio::Token,
+        interest: Ready,
+        opts: mio::PollOpt,
+    ) -> std::io::Result<()> {
         EventedFd(&self.pollfd).reregister(poll, token, interest, opts)
     }
 

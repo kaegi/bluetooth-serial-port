@@ -1,9 +1,8 @@
-
-use std;
-use std::result::Result;
-use std::io::{Read, Write};
-use std::str;
 use mio;
+use std;
+use std::io::{Read, Write};
+use std::result::Result;
+use std::str;
 
 use platform;
 
@@ -38,11 +37,12 @@ impl BtSocket {
                     let mut event_received = false;
                     while !event_received {
                         // Register this, single, event source
-                        evtloop.register(evented, token, interest, mio::PollOpt::oneshot()).unwrap();
+                        evtloop
+                            .register(evented, token, interest, mio::PollOpt::oneshot())
+                            .unwrap();
 
                         // Wait for it to transition to the requested state
                         evtloop.poll(&mut events, None).unwrap();
-
 
                         for event in events.iter() {
                             if event.token() == token {
@@ -79,11 +79,23 @@ impl From<platform::BtSocket> for BtSocket {
 }
 
 impl mio::Evented for BtSocket {
-    fn register(&self, poll: &mio::Poll, token: mio::Token, interest: mio::Ready, opts: mio::PollOpt) -> std::io::Result<()> {
+    fn register(
+        &self,
+        poll: &mio::Poll,
+        token: mio::Token,
+        interest: mio::Ready,
+        opts: mio::PollOpt,
+    ) -> std::io::Result<()> {
         self.0.register(poll, token, interest, opts)
     }
 
-    fn reregister(&self, poll: &mio::Poll, token: mio::Token, interest: mio::Ready, opts: mio::PollOpt) -> std::io::Result<()> {
+    fn reregister(
+        &self,
+        poll: &mio::Poll,
+        token: mio::Token,
+        interest: mio::Ready,
+        opts: mio::PollOpt,
+    ) -> std::io::Result<()> {
         self.0.reregister(poll, token, interest, opts)
     }
 
@@ -108,7 +120,6 @@ impl Write for BtSocket {
     }
 }
 
-
 /// What needs to happen to advance to the next state an asynchronous process
 #[allow(missing_debug_implementations)] // `&mio::Evented` doesn't do `Debug`
 pub enum BtAsync<'a> {
@@ -118,7 +129,6 @@ pub enum BtAsync<'a> {
     /// Asynchronous transaction has completed
     Done,
 }
-
 
 /// Manages the bluetooth connection process when used from an asynchronous client.
 #[derive(Debug)]
@@ -136,7 +146,6 @@ impl<'a> BtSocketConnect<'a> {
         self.0.advance()
     }
 }
-
 
 /// Finds a vector of Bluetooth devices in range.
 ///
@@ -174,7 +183,6 @@ impl std::error::Error for BtError {
     }
 }
 
-
 /// A 6-byte long MAC address.
 #[repr(C, packed)]
 #[derive(Copy, Clone, PartialEq, Eq)]
@@ -182,14 +190,11 @@ pub struct BtAddr(pub [u8; 6]);
 
 impl std::fmt::Debug for BtAddr {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(f,
-               "{:02X}:{:02X}:{:02X}:{:02X}:{:02X}:{:02X}",
-               self.0[0],
-               self.0[1],
-               self.0[2],
-               self.0[3],
-               self.0[4],
-               self.0[5])
+        write!(
+            f,
+            "{:02X}:{:02X}:{:02X}:{:02X}:{:02X}:{:02X}",
+            self.0[0], self.0[1], self.0[2], self.0[3], self.0[4], self.0[5]
+        )
     }
 }
 
@@ -245,16 +250,12 @@ impl BtAddr {
 
     /// Converts `BtAddr` to a string of the format `XX:XX:XX:XX:XX:XX`.
     pub fn to_string(&self) -> String {
-        format!("{:02X}:{:02X}:{:02X}:{:02X}:{:02X}:{:02X}",
-                self.0[0],
-                self.0[1],
-                self.0[2],
-                self.0[3],
-                self.0[4],
-                self.0[5])
+        format!(
+            "{:02X}:{:02X}:{:02X}:{:02X}:{:02X}:{:02X}",
+            self.0[0], self.0[1], self.0[2], self.0[3], self.0[4], self.0[5]
+        )
     }
 }
-
 
 /// A device with its a name and address.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -292,7 +293,6 @@ impl BtDevice {
     }
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -305,7 +305,13 @@ mod tests {
             Err(_) => panic!(""),
         }
 
-        let fail_strings = ["addr : String", "00:00:00:00:00", "00:00:00:00:00:00:00", "-00:00:00:00:00:00", "0G:00:00:00:00:00"];
+        let fail_strings = [
+            "addr : String",
+            "00:00:00:00:00",
+            "00:00:00:00:00:00:00",
+            "-00:00:00:00:00:00",
+            "0G:00:00:00:00:00",
+        ];
         for &s in &fail_strings {
             match BtAddr::from_str(s) {
                 Ok(_) => panic!("Somehow managed to parse \"{}\" as an address?!", s),
@@ -326,7 +332,9 @@ mod tests {
         let addr_string = "00:ff:ee:ee:dd:12";
 
         assert_eq!(addr, BtAddr::from_str(&addr.to_string()).unwrap());
-        assert!(addr_string.eq_ignore_ascii_case(&BtAddr::from_str(addr_string).unwrap().to_string()));
+        assert!(
+            addr_string.eq_ignore_ascii_case(&BtAddr::from_str(addr_string).unwrap().to_string())
+        );
     }
 
     #[cfg(not(feature = "test_without_hardware"))]

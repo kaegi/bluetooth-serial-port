@@ -1,14 +1,12 @@
 use bluetooth::{BtAddr, BtAsync, BtDevice, BtError, BtProtocol};
 use mio;
+use mio::{Poll, Ready};
 use std;
 use std::io::{Read, Write};
-use mio::{Poll, Ready};
 
 #[derive(Debug)]
 #[allow(missing_copy_implementations)]
-pub struct BtSocket {
-
-}
+pub struct BtSocket {}
 
 impl BtSocket {
     pub fn new(protocol: BtProtocol) -> Result<BtSocket, BtError> {
@@ -20,11 +18,23 @@ impl BtSocket {
 }
 
 impl mio::Evented for BtSocket {
-    fn register(&self, poll: &Poll, token: mio::Token, interest: Ready, opts: mio::PollOpt) -> std::io::Result<()> {
+    fn register(
+        &self,
+        poll: &Poll,
+        token: mio::Token,
+        interest: Ready,
+        opts: mio::PollOpt,
+    ) -> std::io::Result<()> {
         unimplemented!();
     }
 
-    fn reregister(&self, poll: &Poll, token: mio::Token, interest: Ready, opts: mio::PollOpt) -> std::io::Result<()> {
+    fn reregister(
+        &self,
+        poll: &Poll,
+        token: mio::Token,
+        interest: Ready,
+        opts: mio::PollOpt,
+    ) -> std::io::Result<()> {
         unimplemented!();
     }
 
@@ -68,11 +78,23 @@ impl<'a> BtSocketConnect<'a> {
 }
 
 impl<'a> mio::Evented for BtSocketConnect<'a> {
-    fn register(&self, poll: &Poll, token: mio::Token, interest: Ready, opts: mio::PollOpt) -> std::io::Result<()> {
+    fn register(
+        &self,
+        poll: &Poll,
+        token: mio::Token,
+        interest: Ready,
+        opts: mio::PollOpt,
+    ) -> std::io::Result<()> {
         unimplemented!();
     }
 
-    fn reregister(&self, poll: &Poll, token: mio::Token, interest: Ready, opts: mio::PollOpt) -> std::io::Result<()> {
+    fn reregister(
+        &self,
+        poll: &Poll,
+        token: mio::Token,
+        interest: Ready,
+        opts: mio::PollOpt,
+    ) -> std::io::Result<()> {
         unimplemented!();
     }
 

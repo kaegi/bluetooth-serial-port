@@ -2,9 +2,9 @@
 #[allow(dead_code)] // some types are currently not used
 mod ffi;
 
-mod sdp;
 mod hci;
+mod sdp;
 mod socket;
 
-pub use self::socket::{BtSocket, BtSocketConnect};
 pub use self::hci::scan_devices;
+pub use self::socket::{BtSocket, BtSocketConnect};
