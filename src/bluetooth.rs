@@ -296,7 +296,6 @@ impl BtDevice {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::ascii::AsciiExt;
 
     #[test()]
     fn btaddr_from_string() {
