@@ -15,7 +15,7 @@ pub struct BtSocket(platform::BtSocket);
 impl BtSocket {
     /// Create an (still) unconnected socket.
     pub fn new(protocol: BtProtocol) -> Result<BtSocket, BtError> {
-        Ok(From::from(try!(platform::BtSocket::new(protocol))))
+        Ok(From::from(platform::BtSocket::new(protocol)?))
     }
 
     /// Connect to the RFCOMM service on remote device with address `addr`. Channel will be
@@ -32,7 +32,7 @@ impl BtSocket {
         let mut connect = self.0.connect(addr);
 
         loop {
-            match try!(connect.advance()) {
+            match connect.advance()? {
                 BtAsync::WaitFor(evented, interest) => {
                     let mut event_received = false;
                     while !event_received {
@@ -237,8 +237,8 @@ impl BtAddr {
             if i == 6 || split_str.len() != 2 {
                 return Err(());
             } // only 6 values (0 <= i <= 5) are allowed
-            let high = try!((split_str.as_bytes()[0] as char).to_digit(16).ok_or(()));
-            let low = try!((split_str.as_bytes()[1] as char).to_digit(16).ok_or(()));
+            let high = (split_str.as_bytes()[0] as char).to_digit(16).ok_or(())?;
+            let low = (split_str.as_bytes()[1] as char).to_digit(16).ok_or(())?;
             addr.0[i] = (high * 16 + low) as u8;
             i += 1;
         }

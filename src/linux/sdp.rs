@@ -442,7 +442,7 @@ impl QueryRFCOMMChannel {
                 unsafe { sdp_list_free(attrid_list, ptr::null()) };
 
                 // quit if sending service request failed
-                try!(result);
+                result?;
 
                 self.state = QueryRFCOMMChannelState::WaitForData;
                 Ok(QueryRFCOMMChannelStatus::WaitReadable(get_fd!()))

@@ -172,7 +172,7 @@ impl<'a> BtSocketConnect<'a> {
     pub fn advance(&mut self) -> Result<BtAsync, BtError> {
         match &self.state {
             &BtSocketConnectState::SDPSearch => {
-                match try!(self.query.advance()) {
+                match self.query.advance()? {
                     // Forward SDP's pleas for another round
                     QueryRFCOMMChannelStatus::WaitReadable(fd) => {
                         self.pollfd = fd;
