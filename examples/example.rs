@@ -1,5 +1,3 @@
-extern crate bluetooth_serial_port;
-extern crate mio;
 use bluetooth_serial_port::{BtProtocol, BtSocket};
 use mio::{Poll, PollOpt, Ready, Token};
 use std::io::{Read, Write};

@@ -7,6 +7,7 @@ repository = "https://github.com/kaegi/bluetooth-serial-port"
 readme = "README.md"
 keywords = ["bluetooth", "RFCOMM", "SDP", "SPP"]
 license = "MIT"
+edition = "2018"
 
 [dependencies]
 mio = "0.6"

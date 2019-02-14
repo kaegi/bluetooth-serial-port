@@ -6,5 +6,7 @@ mod hci;
 mod sdp;
 mod socket;
 
-pub use self::hci::scan_devices;
-pub use self::socket::{BtSocket, BtSocketConnect};
+pub use self::{
+    hci::scan_devices,
+    socket::{BtSocket, BtSocketConnect},
+};

@@ -1,17 +1,15 @@
-extern crate libc;
-extern crate mio;
-extern crate nix;
-
 use super::sdp::{QueryRFCOMMChannel, QueryRFCOMMChannelStatus};
-use bluetooth::{BtAddr, BtAsync, BtError, BtProtocol};
-use mio::unix::EventedFd;
-use mio::{Poll, Ready};
-use std;
-use std::error::Error;
-use std::io::{Read, Write};
-use std::mem;
-use std::os::unix::io::{AsRawFd, FromRawFd, RawFd};
-use std::os::unix::net::UnixStream;
+use crate::bluetooth::{BtAddr, BtAsync, BtError, BtProtocol};
+use mio::{unix::EventedFd, Poll, Ready};
+use std::{
+    error::Error,
+    io::{Read, Write},
+    mem,
+    os::unix::{
+        io::{AsRawFd, FromRawFd, RawFd},
+        net::UnixStream,
+    },
+};
 
 pub fn create_error_from_errno(message: &str, errno: i32) -> BtError {
     let nix_error = nix::Error::from_errno(nix::Errno::from_i32(errno));

@@ -10,16 +10,8 @@
     unused_qualifications
 )]
 
-#[allow(unused_imports)] // depending on target, this might be unused
-#[macro_use]
-extern crate enum_primitive;
-
-extern crate libc;
-extern crate mio;
-extern crate nix;
-
 mod bluetooth;
-pub use bluetooth::*;
+pub use crate::bluetooth::*;
 
 // ////////////////////////////////////
 // Linux implementation of functions
@@ -33,7 +25,7 @@ mod windows;
 mod platform {
 
     #[cfg(target_os = "linux")]
-    pub use linux::*;
+    pub use crate::linux::*;
 
     #[cfg(target_os = "windows")]
     pub use windows::*;

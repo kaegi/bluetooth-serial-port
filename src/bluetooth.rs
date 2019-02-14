@@ -4,7 +4,7 @@ use std::io::{Read, Write};
 use std::result::Result;
 use std::str;
 
-use platform;
+use crate::platform;
 
 /// The bluetooth socket.
 ///

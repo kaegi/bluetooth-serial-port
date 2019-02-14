@@ -1,17 +1,18 @@
-extern crate enum_primitive;
+use super::{
+    ffi::*,
+    socket::{create_error_from_errno, create_error_from_last},
+};
 
-use super::ffi::*;
-use super::socket::create_error_from_errno;
-use super::socket::create_error_from_last;
+use crate::bluetooth::{BtAddr, BtError};
 
-use bluetooth::{BtAddr, BtError};
-
-use enum_primitive::FromPrimitive;
-use std::mem;
-use std::os::raw::*;
-use std::os::unix;
-use std::ptr;
-use std::slice;
+use enum_primitive::{
+    enum_from_primitive, enum_from_primitive_impl, enum_from_primitive_impl_ty, FromPrimitive,
+};
+use std::{
+    mem,
+    os::{raw::*, unix},
+    ptr, slice,
+};
 
 #[repr(C)]
 #[derive(Copy, Clone, Debug)]
@@ -23,9 +24,9 @@ struct sdp_session_t {
     tid: uint16_t,
     priv_: *mut c_void,
 }
-impl ::std::default::Default for sdp_session_t {
+impl Default for sdp_session_t {
     fn default() -> Self {
-        unsafe { ::std::mem::zeroed() }
+        unsafe { mem::zeroed() }
     }
 }
 
@@ -41,9 +42,9 @@ struct uuid_t {
     pub type_: uint8_t,
     pub value: uuid_union_t,
 }
-impl ::std::default::Default for uuid_t {
+impl Default for uuid_t {
     fn default() -> Self {
-        unsafe { ::std::mem::zeroed() }
+        unsafe { mem::zeroed() }
     }
 }
 
@@ -53,9 +54,9 @@ struct sdp_list_t {
     next: *mut sdp_list_t,
     data: *mut c_void,
 }
-impl ::std::default::Default for sdp_list_t {
+impl Default for sdp_list_t {
     fn default() -> Self {
-        unsafe { ::std::mem::zeroed() }
+        unsafe { mem::zeroed() }
     }
 }
 
@@ -77,9 +78,9 @@ struct sdp_record_t {
     pub svclass: uuid_t,
     _bindgen_padding_0_: [u8; 4usize],
 }
-impl ::std::default::Default for sdp_record_t {
+impl Default for sdp_record_t {
     fn default() -> Self {
-        unsafe { ::std::mem::zeroed() }
+        unsafe { mem::zeroed() }
     }
 }
 
@@ -109,9 +110,9 @@ struct sdp_data_t {
     unit_size: c_int,
     _bindgen_padding_0_: [u8; 4usize],
 }
-impl ::std::default::Default for sdp_data_t {
+impl Default for sdp_data_t {
     fn default() -> Self {
-        unsafe { ::std::mem::zeroed() }
+        unsafe { mem::zeroed() }
     }
 }
 

@@ -1,16 +1,9 @@
-extern crate libc;
-extern crate mio;
-extern crate nix;
+use super::{ffi::*, socket::create_error_from_last};
 
-use super::ffi::*;
-use super::socket::create_error_from_last;
+use crate::bluetooth::{BtAddr, BtDevice, BtError};
 
-use bluetooth::{BtAddr, BtDevice, BtError};
-
-use self::libc::close;
-use std::ffi::CStr;
-use std::os::raw::*;
-use std::ptr;
+use libc::close;
+use std::{ffi::CStr, mem, os::raw::*, ptr};
 
 #[repr(C, packed)]
 #[derive(Copy, Clone, Debug)]
@@ -23,9 +16,9 @@ pub struct InquiryInfo {
     pub clock_offset: uint16_t,
 }
 
-impl ::std::default::Default for InquiryInfo {
+impl Default for InquiryInfo {
     fn default() -> Self {
-        unsafe { ::std::mem::zeroed() }
+        unsafe { mem::zeroed() }
     }
 }
 
