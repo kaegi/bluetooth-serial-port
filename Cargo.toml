@@ -1,6 +1,6 @@
 [package]
 name = "bluetooth-serial-port"
-version = "0.5.1"
+version = "0.5.2-pre"
 authors = ["Christopher James Halse Rogers <raof@ubuntu.com>", "kaegi <kaegi.dev@gmail.com>"]
 description = "Interact with Bluetooth devices via RFCOMM channels"
 repository = "https://github.com/kaegi/bluetooth-serial-port"
@@ -10,7 +10,7 @@ license = "MIT"
 
 [dependencies]
 mio = "0.6"
-nix = "0.7.0"
+nix = "0.8.0"
 libc = "0.2"
 enum_primitive = "0.1"
 
