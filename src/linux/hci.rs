@@ -58,7 +58,7 @@ extern "C" {
 }
 
 pub fn scan_devices() -> Result<Vec<BtDevice>, BtError> {
-    let device_id = unsafe { hci_get_route(0 as *mut BtAddr) };
+    let device_id = unsafe { hci_get_route(ptr::null_mut()) };
     if device_id < 0 {
         return Err(create_error_from_last(
             "hci_get_route(): No local bluetooth adapter found",
@@ -76,13 +76,15 @@ pub fn scan_devices() -> Result<Vec<BtDevice>, BtError> {
 
     let timeout = 1; // 1.28 sec
     let flags = IREQ_CACHE_FLUSH;
+
+    let mut inquiry_info = inquiry_infos.as_mut_ptr();
     let number_responses = unsafe {
         hci_inquiry(
             device_id,
             timeout,
             inquiry_infos.len() as c_int,
             ptr::null(),
-            &mut ::std::mem::transmute(&mut inquiry_infos[0]),
+            &mut inquiry_info,
             flags,
         )
     };
@@ -115,7 +117,7 @@ pub fn scan_devices() -> Result<Vec<BtDevice>, BtError> {
         };
 
         devices.push(BtDevice {
-            name: name,
+            name,
             addr: inquiry_info.bdaddr.convert_host_byteorder(),
         })
     }

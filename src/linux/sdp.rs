@@ -91,7 +91,7 @@ struct sdp_val_union_t {
 impl sdp_val_union_t {
     unsafe fn uint8(&mut self) -> *mut uint8_t {
         let raw: *mut u8 = ::std::mem::transmute(&self._bindgen_data_);
-        ::std::mem::transmute(raw.offset(0))
+        raw.offset(0)
     }
     unsafe fn uuid(&mut self) -> *mut uuid_t {
         let raw: *mut u8 = ::std::mem::transmute(&self._bindgen_data_);
@@ -232,7 +232,7 @@ pub struct QueryRFCOMMChannel {
 impl QueryRFCOMMChannel {
     pub fn new(addr: BtAddr) -> Self {
         QueryRFCOMMChannel {
-            addr: addr,
+            addr,
             session: ptr::null_mut(),
             state: QueryRFCOMMChannelState::New,
 
@@ -410,7 +410,7 @@ impl QueryRFCOMMChannel {
                     unsafe { sdp_list_append(ptr::null_mut(), mem::transmute(&mut service_uuid)) };
 
                 // specify that we want a list of all the matching applications' attributes
-                let mut range = 0x0000FFFFu32;
+                let mut range = 0x0000_FFFFu32;
                 let attrid_list =
                     unsafe { sdp_list_append(ptr::null_mut(), mem::transmute(&mut range)) };
 

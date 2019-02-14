@@ -176,9 +176,9 @@ impl std::fmt::Display for BtError {
 impl std::error::Error for BtError {
     fn description(&self) -> &str {
         match self {
-            &BtError::Unknown => "Unknown Bluetooth Error",
-            &BtError::Errno(_, ref message) => message.as_str(),
-            &BtError::Desc(ref message) => message.as_str(),
+            BtError::Unknown => "Unknown Bluetooth Error",
+            BtError::Errno(_, ref message) => message.as_str(),
+            BtError::Desc(ref message) => message.as_str(),
         }
     }
 }
@@ -249,7 +249,7 @@ impl BtAddr {
     }
 
     /// Converts `BtAddr` to a string of the format `XX:XX:XX:XX:XX:XX`.
-    pub fn to_string(&self) -> String {
+    pub fn to_string(self) -> String {
         format!(
             "{:02X}:{:02X}:{:02X}:{:02X}:{:02X}:{:02X}",
             self.0[0], self.0[1], self.0[2], self.0[3], self.0[4], self.0[5]
@@ -286,10 +286,7 @@ pub enum BtProtocol {
 impl BtDevice {
     /// Create a new `BtDevice` manually from a name and addr.
     pub fn new(name: String, addr: BtAddr) -> BtDevice {
-        BtDevice {
-            name: name,
-            addr: addr,
-        }
+        BtDevice { name, addr }
     }
 }
 

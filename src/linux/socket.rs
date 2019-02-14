@@ -161,10 +161,10 @@ pub struct BtSocketConnect<'a> {
 impl<'a> BtSocketConnect<'a> {
     pub fn new(socket: &'a mut BtSocket, addr: BtAddr) -> Self {
         BtSocketConnect {
-            addr: addr.clone(),
+            addr,
             pollfd: 0,
             query: QueryRFCOMMChannel::new(addr),
-            socket: socket,
+            socket,
             state: BtSocketConnectState::SDPSearch,
         }
     }
