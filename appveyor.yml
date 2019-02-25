@@ -1,0 +1,28 @@
+environment:
+  RUST_CHANNEL: stable
+  matrix:
+  - TARGET: msvc
+    LLVM_VERSION: 5.0.2
+platform:
+  - x64
+  - x86
+install:
+  - ps: git submodule -q update --init
+  - if %PLATFORM% == x86 (set RUST_PLATFORM=i686&set MINGW_BITS=32) else (set RUST_PLATFORM=x86_64&set MINGW_BITS=64)
+  - if %PLATFORM% == x86 (set "JAVA_HOME=C:\Program Files (x86)\Java\jdk1.8.0") else (set "JAVA_HOME=C:\Program Files\Java\jdk1.8.0")
+  - echo %RUST_CHANNEL%
+  - echo %RUST_PLATFORM%
+  - echo %MINGW_BITS%
+  - echo %RUST_PLATFORM%-pc-windows-%TARGET%
+  - echo %JAVA_HOME%
+  - appveyor-retry appveyor DownloadFile https://win.rustup.rs/ -FileName rustup-init.exe
+  - rustup-init.exe -y --default-host %RUST_PLATFORM%-pc-windows-%TARGET% --default-toolchain %RUST_CHANNEL%
+  - set PATH=%PATH%;C:\Users\appveyor\.cargo\bin
+  - ps: $env:PATH="$env:JAVA_HOME\bin;$env:PATH;C:\rust\bin"
+  - rustc -vV
+  - cargo -vV
+cache:
+  - '%USERPROFILE%\.cargo'
+build: off
+test_script:
+  - cargo test --features test_without_hardware
