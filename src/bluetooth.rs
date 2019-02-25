@@ -185,7 +185,7 @@ impl std::error::Error for BtError {
 
 /// A 6-byte long MAC address.
 #[repr(C, packed)]
-#[derive(Copy, Clone, PartialEq, Eq)]
+#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct BtAddr(pub [u8; 6]);
 
 impl std::fmt::Debug for BtAddr {
