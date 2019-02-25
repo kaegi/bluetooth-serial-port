@@ -11,7 +11,7 @@ edition = "2018"
 
 [dependencies]
 mio = "0.6"
-nix = "0.8.0"
+nix = "0.13.0"
 libc = "0.2"
 enum_primitive = "0.1"
 

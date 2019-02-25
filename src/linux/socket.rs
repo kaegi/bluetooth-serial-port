@@ -12,7 +12,7 @@ use std::{
 };
 
 pub fn create_error_from_errno(message: &str, errno: i32) -> BtError {
-    let nix_error = nix::Error::from_errno(nix::Errno::from_i32(errno));
+    let nix_error = nix::Error::from_errno(nix::errno::from_i32(errno));
     BtError::Errno(
         errno as u32,
         format!("{:}: {:}", message, nix_error.description()),
@@ -87,7 +87,10 @@ impl BtSocket {
 
 impl From<nix::Error> for BtError {
     fn from(e: nix::Error) -> BtError {
-        BtError::Errno(e.errno() as u32, e.description().to_string())
+        BtError::Errno(
+            e.as_errno().map(|x| x as u32).unwrap_or(0),
+            e.description().to_string(),
+        )
     }
 }
 
@@ -222,7 +225,7 @@ impl<'a> BtSocketConnect<'a> {
                     libc::getpeername(self.pollfd, mem::transmute(&mut full_address), &mut socklen)
                 } < 0
                 {
-                    if nix::Errno::last() == nix::Errno::ENOTCONN {
+                    if nix::errno::Errno::last() == nix::errno::Errno::ENOTCONN {
                         // Connection has failed – obtain actual error code using `read()`
                         let mut buf = [0u8; 1];
                         nix::unistd::read(self.pollfd, &mut buf).unwrap_err();
